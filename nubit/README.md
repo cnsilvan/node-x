@@ -3,7 +3,7 @@
 ````
 # 1.安装screen
 sudo apt install screen -y
-# 2.部署轻节点
+# 2.部署轻节点 这一步需要等待一段时间，请耐心等待
 screen -dmS nubit_test_node bash -c "curl -sL1 https://nubit.sh | bash"
 # 3.获取助记词去领水，领完水再继续
 cat $HOME/nubit-node/mnemonic.txt
