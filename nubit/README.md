@@ -5,7 +5,7 @@
 sudo apt install screen -y
 # 2.部署轻节点 这一步需要等待一段时间，请耐心等待
 screen -dmS nubit_test_node bash -c "curl -sL1 https://nubit.sh | bash"
-# 3.获取助记词去领水，领完水再继续
+# 3.获取助记词去领水，领完水再继续（如果获取不到，等待节点同步完成再试）
 cat $HOME/nubit-node/mnemonic.txt
 # 4.查看部署状态
 cd ~/nubit-node/bin
@@ -23,7 +23,6 @@ cd ~/nubit-node/bin
 }
 is_running为true，则表示部署成功。
 catch_up_done为true，则表示节点已经同步完成。
-# 如果一直没数据，可查看是否领水成功
 ````
 ## 使用Keplr钱包导入助记词
 1. 下载并安装 https://chrome.google.com/webstore/detail/keplr/dmkamcknogkgcdfhhbddcghachkejeap
