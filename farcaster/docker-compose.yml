@@ -12,7 +12,7 @@ version: '3.9'
 
 services:
   hubble:
-    image: farcasterxyz/hubble:latest
+    image: cnsilvan/hubble:latest
     pull_policy: always
     restart: always
     command: ["npx", "pm2-runtime", "start", "pm2.config.cjs"]
