@@ -5,7 +5,7 @@ cd ~/hub-monorepo
 docker buildx create --use
 docker buildx ls
 docker buildx build -f Dockerfile.hubble \
-  --platform "linux/amd64,linux/arm64" \
+  --platform "linux/amd64" \
   --push \
   -t cnsilvan/hubble:${HUBBLE_VERSION} \
   -t cnsilvan/hubble:latest .
