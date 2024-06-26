@@ -47,7 +47,7 @@ services:
     volumes:
       - ./.hub:/home/node/app/apps/hubble/.hub
       - ./.rocks:/home/node/app/apps/hubble/.rocks
-      - ./.cli.js:/home/node/app/apps/hubble/build/cli.js
+      - ./.build:/home/node/app/apps/hubble/build
     networks:
       - my-network
     logging:
