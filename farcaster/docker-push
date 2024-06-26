@@ -1,0 +1,10 @@
+curl -sSL https://raw.githubusercontent.com/cnsilvan/node-x/main/farcaster/build.sh | bash
+HUBBLE_VERSION=$(node -e "console.log(require('./apps/hubble/package.json').version);")
+echo "Publishing $HUBBLE_VERSION"
+cd ~/hub-monorepo
+depot build -f Dockerfile.hubble \
+  --platform "linux/amd64,linux/arm64" \
+  --push \
+  -t cnsilvan/hubble:${HUBBLE_VERSION} \
+  -t cnsilvan/hubble:latest \
+  .
