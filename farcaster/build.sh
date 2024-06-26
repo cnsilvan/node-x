@@ -3,7 +3,9 @@ sudo apt-get install -y nodejs
 curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
 echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
 sudo apt update
-sudo apt install -y yarn cargo cmake protobuf-compiler htop git libclang-dev g++
+sudo apt install -y yarn cargo cmake htop git libclang-dev g++ autoconf automake libtool curl make unzip
+curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v27.2/protoc-27.2-linux-x86_64.zip && unzip protoc-27.2-linux-x86_64.zip -d $HOME/.local
+export PATH="$PATH:$HOME/.local/bin"
 LIBCLANG_PATH=$(find /usr -name "libclang.so*" -exec dirname {} \; 2>/dev/null | head -n 1)
 if [ -z "$LIBCLANG_PATH" ]; then
     echo "libclang not found. Please install libclang and try again."
