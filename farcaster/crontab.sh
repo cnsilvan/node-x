@@ -2,7 +2,7 @@
 crontab -l > /tmp/current_cron
 
 # 检查临时文件中是否已经存在目标条目
-grep -q "sed -i 's/farcasterxyz\\/hubble:latest/cnsilvan\\/hubble:latest/g' /root/hubble/docker-compose.yml" /tmp/current_cron
+grep -q "hubble:latest/cnsilvan" /tmp/current_cron
 
 # 如果 grep 的退出状态码为 1（即没有找到目标条目），则添加新条目
 if [ $? -ne 0 ]; then
