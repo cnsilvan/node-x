@@ -10,13 +10,10 @@ HASH=$1
 
 # 下载文件
 curl -L -o titan-l2edge_v0.1.19_patch_linux_amd64.tar.gz https://github.com/Titannet-dao/titan-node/releases/download/v0.1.19/titan-l2edge_v0.1.19_patch_linux_amd64.tar.gz
-
-# 创建目标文件夹并解压
-mkdir -p titan-l2edge_v0.1.19_patch_linux_amd64
-tar -xzvf titan-l2edge_v0.1.19_patch_linux_amd64.tar.gz -C titan-l2edge_v0.1.19_patch_linux_amd64
+tar -xzvf titan-l2edge_v0.1.19_patch_linux_amd64.tar.gz
 
 # 进入文件夹并复制文件
-cd titan-l2edge_v0.1.19_patch_linux_amd64
+cd titan-edge_v0.1.19_89e53b6_linux_amd64
 sudo cp titan-edge /usr/local/bin
 sudo cp libgoworkerd.so /usr/local/lib
 
