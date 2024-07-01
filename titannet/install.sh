@@ -24,11 +24,13 @@ sudo ldconfig
 cat <<EOL | sudo tee /etc/systemd/system/titan-edge.service
 [Unit]
 Description=Titan Edge Daemon Service
-After=network.target
+After=network-online.target
 
 [Service]
 ExecStart=/usr/local/bin/titan-edge daemon start --init --url https://cassini-locator.titannet.io:5000/rpc/v0
 Restart=always
+RestartSec=3
+LimitNOFILE=4096
 User=root
 
 [Install]
