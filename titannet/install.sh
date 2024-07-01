@@ -7,21 +7,43 @@ if [ "$#" -ne 1 ]; then
 fi
 
 HASH=$1
-echo "HASH=${HASH}"
+
 # 下载文件
 curl -L -o titan-l2edge_v0.1.19_patch_linux_amd64.tar.gz https://github.com/Titannet-dao/titan-node/releases/download/v0.1.19/titan-l2edge_v0.1.19_patch_linux_amd64.tar.gz
 
 # 创建目标文件夹并解压
-tar -xzvf titan-l2edge_v0.1.19_patch_linux_amd64.tar.gz
+mkdir -p titan-l2edge_v0.1.19_patch_linux_amd64
+tar -xzvf titan-l2edge_v0.1.19_patch_linux_amd64.tar.gz -C titan-l2edge_v0.1.19_patch_linux_amd64
 
 # 进入文件夹并复制文件
-cd titan-edge_v0.1.19_89e53b6_linux_amd64
+cd titan-l2edge_v0.1.19_patch_linux_amd64
 sudo cp titan-edge /usr/local/bin
 sudo cp libgoworkerd.so /usr/local/lib
-sudo ldconfig
-# 启动守护进程并绑定设备
-nohup titan-edge daemon start --init --url https://cassini-locator.titannet.io:5000/rpc/v0 > titan-edge.log 2>&1 &
-titan-edge bind --hash=$HASH https://api-test1.container1.titannet.io/api/v2/device/binding
 
-# 停止节点
-# titan-edge daemon stop
+# 更新共享库缓存
+sudo ldconfig
+
+# 创建 systemd 服务单元文件
+cat <<EOL | sudo tee /etc/systemd/system/titan-edge.service
+[Unit]
+Description=Titan Edge Daemon Service
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/titan-edge daemon start --init --url https://cassini-locator.titannet.io:5000/rpc/v0
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target
+EOL
+
+# 重新加载 systemd 服务
+sudo systemctl daemon-reload
+
+# 启动并启用 titan-edge 服务
+sudo systemctl start titan-edge
+sudo systemctl enable titan-edge
+
+# 绑定设备
+titan-edge bind --hash=$HASH https://api-test1.container1.titannet.io/api/v2/device/binding
