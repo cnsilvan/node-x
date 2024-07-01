@@ -21,7 +21,7 @@ sudo cp libgoworkerd.so /usr/local/lib
 sudo ldconfig
 # 启动守护进程并绑定设备
 titan-edge daemon start --init --url https://cassini-locator.titannet.io:5000/rpc/v0
-titan-edge bind --hash=$HASH https://api-test1.container1.titannet.io/api/v2/device/binding
+nohup titan-edge bind --hash=$HASH https://api-test1.container1.titannet.io/api/v2/device/binding > titan-edge-bind.log 2>&1 &
 
 # 停止节点
 # titan-edge daemon stop
