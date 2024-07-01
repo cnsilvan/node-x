@@ -7,7 +7,7 @@ if [ "$#" -ne 1 ]; then
 fi
 
 HASH=$1
-
+echo "HASH=${HASH}"
 # 下载文件
 curl -L -o titan-l2edge_v0.1.19_patch_linux_amd64.tar.gz https://github.com/Titannet-dao/titan-node/releases/download/v0.1.19/titan-l2edge_v0.1.19_patch_linux_amd64.tar.gz
 tar -xzvf titan-l2edge_v0.1.19_patch_linux_amd64.tar.gz
