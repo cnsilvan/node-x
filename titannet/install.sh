@@ -18,7 +18,7 @@ tar -xzvf titan-l2edge_v0.1.19_patch_linux_amd64.tar.gz
 cd titan-edge_v0.1.19_89e53b6_linux_amd64
 sudo cp titan-edge /usr/local/bin
 sudo cp libgoworkerd.so /usr/local/lib
-
+sudo ldconfig
 # 启动守护进程并绑定设备
 titan-edge daemon start --init --url https://cassini-locator.titannet.io:5000/rpc/v0
 titan-edge bind --hash=$HASH https://api-test1.container1.titannet.io/api/v2/device/binding
