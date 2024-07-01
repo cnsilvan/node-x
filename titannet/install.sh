@@ -43,4 +43,4 @@ sudo systemctl start titan-edge
 sudo systemctl enable titan-edge
 
 # 绑定设备
-titan-edge bind --hash=$HASH https://api-test1.container1.titannet.io/api/v2/device/binding
+/usr/local/bin/titan-edge bind --hash=$HASH https://api-test1.container1.titannet.io/api/v2/device/binding
