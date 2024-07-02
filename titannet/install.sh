@@ -46,5 +46,6 @@ sudo systemctl daemon-reload
 # 启动并启用 titan-edge 服务
 sudo systemctl start titan-edge
 sudo systemctl enable titan-edge
-
+sudo sed -i 's/^[[:space:]]*#StorageGB = .*/StorageGB = 20/' /root/.titanedge/config.toml
+sudo systemctl restart titan-edge
 
