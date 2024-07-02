@@ -37,6 +37,9 @@ User=root
 WantedBy=multi-user.target
 EOL
 
+# 绑定设备
+/usr/local/bin/titan-edge bind --hash=$HASH https://api-test1.container1.titannet.io/api/v2/device/binding
+
 # 重新加载 systemd 服务
 sudo systemctl daemon-reload
 
@@ -44,5 +47,4 @@ sudo systemctl daemon-reload
 sudo systemctl start titan-edge
 sudo systemctl enable titan-edge
 
-# 绑定设备
-/usr/local/bin/titan-edge bind --hash=$HASH https://api-test1.container1.titannet.io/api/v2/device/binding
+
