@@ -1,5 +1,5 @@
 #!/bin/bash
-cd hub-monorepo
+cd /root/hub-monorepo
 # 获取当前的Git标签
 current_tag=$(git describe --tags)
 # 获取最新的Git标签
