@@ -37,8 +37,7 @@ User=root
 WantedBy=multi-user.target
 EOL
 
-# 绑定设备
-/usr/local/bin/titan-edge bind --hash=$HASH https://api-test1.container1.titannet.io/api/v2/device/binding
+
 
 # 重新加载 systemd 服务
 sudo systemctl daemon-reload
@@ -46,6 +45,8 @@ sudo systemctl daemon-reload
 # 启动并启用 titan-edge 服务
 sudo systemctl start titan-edge
 sudo systemctl enable titan-edge
+# 绑定设备
+/usr/local/bin/titan-edge bind --hash=$HASH https://api-test1.container1.titannet.io/api/v2/device/binding
 # 检查空闲磁盘空间，单位为GB
 free_space=$(df / | grep / | awk '{print $4}')
 free_space_gb=$((free_space / 1024 / 1024))
