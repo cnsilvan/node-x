@@ -1,4 +1,4 @@
-rm -rf ~/.nubit-light-nubit-alphatestnet-1/keys/
+sudo rm -rf ~/.nubit-light-nubit-alphatestnet-1/keys/
 cd nubit-node
 ~/nubit-node/bin/nubit light init --p2p.network nubit-alphatestnet-1 > output.txt
 mnemonic=$(grep -A 1 "MNEMONIC (save this somewhere safe!!!):" output.txt | tail -n 1)
