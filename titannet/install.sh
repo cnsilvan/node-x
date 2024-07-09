@@ -19,7 +19,8 @@ sudo cp libgoworkerd.so /usr/local/lib
 
 # 更新共享库缓存
 sudo ldconfig
-
+# 获取当前登录用户
+USER=$(whoami)
 # 创建 systemd 服务单元文件
 cat <<EOL | sudo tee /etc/systemd/system/titan-edge.service
 [Unit]
@@ -31,7 +32,7 @@ ExecStart=/usr/local/bin/titan-edge daemon start --init --url https://cassini-lo
 Restart=always
 RestartSec=3
 LimitNOFILE=4096
-User=root
+User=$USER
 
 [Install]
 WantedBy=multi-user.target
