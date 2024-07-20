@@ -119,7 +119,7 @@ services:
     networks:
       eth-model-local:
         aliases:
-          - worker2
+          - worker7
         ipv4_address: 172.22.0.11
 
   head:
@@ -162,5 +162,5 @@ networks:
 volumes:
   inference-data:
   worker-data:
-  worker2-data:
+  worker7-data:
   head-data:
