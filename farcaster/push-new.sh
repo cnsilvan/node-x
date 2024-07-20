@@ -4,12 +4,9 @@ cd /root/hub-monorepo
 # 获取当前的Git标签
 current_tag=$(git describe --tags)
 docker login
-# 获取Docker Hub上的最新镜像标签
-docker pull cnsilvan/hubble:latest
-docker pull farcasterxyz/hubble:latest
 
-cnsilvan_latest=$(docker inspect --format='{{index .RepoTags 0}}' cnsilvan/hubble:latest | awk -F: '{print $2}')
-farcaster_latest=$(docker inspect --format='{{index .RepoTags 0}}' farcasterxyz/hubble:latest | awk -F: '{print $2}')
+cnsilvan_latest=$(curl -s https://hub.docker.com/v2/repositories/cnsilvan/hubble/tags/?page_size=2 | jq -r '.results[1].name')
+farcaster_latest=$(curl -s https://hub.docker.com/v2/repositories/farcasterxyz/hubble/tags/?page_size=2 | jq -r '.results[1].name')
 
 # 比较Docker Hub镜像的最新标签
 if [ "$cnsilvan_latest" != "$farcaster_latest" ]; then
