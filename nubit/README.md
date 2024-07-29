@@ -34,7 +34,6 @@ catch_up_done为true，则表示节点已经同步完成。
 6. 回到keplr查看nubit地址,以"nubit"开头的地址即为你的nubit地址。
 ## 领水
 1.前往网站：https://faucet.nubit.org 每天可以领0.01个NUB
-
 2.DC：https://discord.com/invite/nubit 每天可以领0.03个NUB
 在#alpha-testnet-faucet上的频道中使用以下命令：
 ````
