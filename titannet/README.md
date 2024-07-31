@@ -45,4 +45,4 @@
    /usr/local/bin/titan-edge bind --hash=你的身份码 https://api-test1.container1.titannet.io/api/v2/device/binding
    ```
 
-   请将 `你的身份码` 替换为你的实际身份码。
+   请将 `你的身份码` 替换为你的实际身份码。[前往获取身份码](https://test1.titannet.io/newoverview/activationcodemanagement)
