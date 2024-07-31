@@ -33,6 +33,7 @@
    使用 `screen` 在后台启动 Titan：
 
    ```bash
+   sudo apt install screen -y
    screen -dmS titan-node /usr/local/bin/titan-edge daemon start --init --url https://cassini-locator.titannet.io:5000/rpc/v0
    ```
 
