@@ -28,8 +28,13 @@
 1. **选择节点教程**：根据你的需求点击上方链接。
 2. **跟随步骤**：按照提供的详细步骤进行操作，确保无误。
 3. **完成部署**：成功部署后，享受去中心化网络的魅力吧！
-
+   
 
 你可以访问这些链接，查看详细的节点部署步骤和指导。
 
 我们持续更新和扩展教程内容，欢迎大家收藏并关注节点学院的最新动态。🚀
+
+## 如有批量部署或者托管服务器等需求可联系📬
+通过Telegram 联系我<img src="https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg" width="18px">[Telegram](https://t.me/cnsilvan)
+
+
