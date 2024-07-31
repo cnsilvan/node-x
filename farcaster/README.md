@@ -25,8 +25,19 @@
    git clone https://github.com/farcasterxyz/hub-monorepo.git
    cd hub-monorepo/apps/hubble
    ```
+   
+2. **安装 Docker (已安装可跳过)** 
 
-2. **生成身份密钥对**
+   ```bash
+   curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/docker.gpg
+   sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+   sudo apt-get update
+   sudo apt-get install -y docker-ce
+   sudo groupadd docker
+   sudo usermod -aG docker $USER
+   ```
+   
+3. **生成身份密钥对**
 
    使用 Docker Compose 创建身份密钥对：
 
@@ -34,7 +45,7 @@
    docker compose run hubble yarn identity create
    ```
 
-3. **配置 `.env` 文件**
+4. **配置 `.env` 文件**
 
    创建 `.env` 文件并设置 Ethereum 和 Optimism 主网的 RPC URL：
 
@@ -45,7 +56,7 @@
    HUB_OPERATOR_FID=your-fid
    ```
 
-4. **启动 Hubble**
+5. **启动 Hubble**
 
    使用 Docker Compose 启动 Hubble：
 
@@ -55,7 +66,7 @@
 
    这将启动一个 Hubble 容器，该容器将自动同步网络数据。
 
-5. **查看同步状态**
+6. **查看同步状态**
 
    通过以下命令查看同步状态：
 
