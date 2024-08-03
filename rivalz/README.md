@@ -22,9 +22,10 @@ sudo rm -rf /usr/lib/node_modules/.rivalz-node-cli*
 sudo rm ~/.rivalz
 ```
 
-### 安装 Rivalz CLI 📥
+### 安装 Rivalz CLI & screen 📥
 ```bash
 npm i -g rivalz-node-cli
+sudo apt install screen -y
 ```
 
 ### 升级 Rivalz CLI ⬆️
@@ -36,7 +37,10 @@ rivalz update-version
 ```bash
 rivalz run
 ```
-
+### 上面输入完配置后，需要后台运行 Rivalz CLI ▶️
+```bash
+screen -dmS rivalz-node rivalz run
+```
 ### 配置输入 ⚙️
 运行后会提示输入配置，按照你的需求逐项输入即可。
 
