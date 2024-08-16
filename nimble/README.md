@@ -105,7 +105,7 @@ pm2 logs nimble
 ```
 ### **余额查询** 💰
 
-- [1.打开网页输入master地址查询](https://https://www.cryptofiverse.com/nimble-balance)
+- [1.打开网页输入master地址查询](https://www.cryptofiverse.com/nimble-balance)
 - 2.本地查询
 ```bash
 cd ~/nimble/nimble-miner-public
