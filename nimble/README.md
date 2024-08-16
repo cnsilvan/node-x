@@ -104,7 +104,13 @@ pm2 start --name nimble -- bash -c "cd ~/nimble/nimble-miner-public && source ./
 pm2 logs nimble
 ```
 ### **余额查询** 💰
-[打开网页输入master地址查询](https://https://www.cryptofiverse.com/nimble-balance)
+
+- [1.打开网页输入master地址查询](https://https://www.cryptofiverse.com/nimble-balance)
+- 2.本地查询
+```bash
+cd ~/nimble/nimble-miner-public
+make check addr=your_master_wallet
+```
 ### **运行成功的截图** 🎉
 
 成功运行后，可以参考以下截图查看结果：
