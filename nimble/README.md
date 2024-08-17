@@ -99,7 +99,7 @@ make run addr=<填写nodex-sub生成的nimble开头的地址> master_wallet=<填
 如果你希望在后台无人值守的情况下运行挖矿程序，请使用以下命令：
 
 ```bash
-pm2 start --name nimble -- bash -c "cd ~/nimble/nimble-miner-public && source ./nimenv_localminers/bin/activate && make run addr=<填写nodex-sub生成的nimble开头的地址> master_wallet=<填写nodex-master生成的nimble开头的地址>" && pm2 save && pm2 startup
+pm2 start bash  --name nimble -- -c 'cd ~/nimble/nimble-miner-public && source ./nimenv_localminers/bin/activate && make run addr=<填写nodex-sub生成的nimble开头的地址> master_wallet=<填写nodex-master生成的nimble开头的地址>' && pm2 save && pm2 startup
 # 查看日志
 pm2 logs nimble
 ```
