@@ -9,11 +9,11 @@ fi
 HASH=$1
 echo "HASH=${HASH}"
 # 下载文件
-curl -L -o titan-l2edge_v0.1.19_patch_linux_amd64.tar.gz https://github.com/Titannet-dao/titan-node/releases/download/v0.1.19/titan-l2edge_v0.1.19_patch_linux_amd64.tar.gz
-tar -xzvf titan-l2edge_v0.1.19_patch_linux_amd64.tar.gz
+curl -L -o titan-edge_v0.1.20_246b9dd_linux-amd64.tar.gz https://github.com/Titannet-dao/titan-node/releases/download/v0.1.20/titan-edge_v0.1.20_246b9dd_linux-amd64.tar.gz
+tar -xzvf titan-edge_v0.1.20_246b9dd_linux-amd64.tar.gz
 
 # 进入文件夹并复制文件
-cd titan-edge_v0.1.19_89e53b6_linux_amd64
+cd titan-edge_v0.1.20_246b9dd_linux-amd64
 sudo cp titan-edge /usr/local/bin
 sudo cp libgoworkerd.so /usr/local/lib
 
