@@ -6,8 +6,8 @@
 1. **下载并解压 Titan Edge**
 
    ```bash
-   curl -L -o titan-l2edge_v0.1.19_patch_linux_amd64.tar.gz https://github.com/Titannet-dao/titan-node/releases/download/v0.1.19/titan-l2edge_v0.1.19_patch_linux_amd64.tar.gz
-   tar -xzvf titan-l2edge_v0.1.19_patch_linux_amd64.tar.gz
+   curl -L -o titan-edge_v0.1.20_246b9dd_linux-amd64.tar.gz https://github.com/Titannet-dao/titan-node/releases/download/v0.1.20/titan-edge_v0.1.20_246b9dd_linux-amd64.tar.gz
+   tar -xzvf titan-edge_v0.1.20_246b9dd_linux-amd64.tar.gz
    ```
 
 2. **复制可执行文件和库文件**
@@ -15,7 +15,7 @@
    进入解压后的目录并复制必要的文件到系统路径：
 
    ```bash
-   cd titan-edge_v0.1.19_89e53b6_linux_amd64
+   cd titan-edge_v0.1.20_246b9dd_linux-amd64
    sudo cp titan-edge /usr/local/bin
    sudo cp libgoworkerd.so /usr/local/lib
    ```
