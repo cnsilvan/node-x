@@ -44,3 +44,13 @@ function install_pm2() {
     npm install pm2@latest -g
   fi
 }
+if [ "$1" == "install_pm2" ]; then
+    install_pm2
+elif [ "$1" == "install_docker" ]; then
+    install_docker
+elif [ "$1" == "install_nodejs_and_npm" ]; then
+    install_nodejs_and_npm
+else
+    echo "❌ Unknown function. Available functions: install_pm2, install_docker, install_nodejs_and_npm"
+    exit 1
+fi
