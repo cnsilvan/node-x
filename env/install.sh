@@ -1,4 +1,4 @@
-install_docker() {
+function install_docker() {
     # Check if Docker is already installed
     if command -v docker &> /dev/null; then
         echo "✅ Docker is installed."
