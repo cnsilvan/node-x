@@ -46,6 +46,7 @@ sudo systemctl daemon-reload
 # 启动并启用 titan-edge 服务
 sudo systemctl start titan-edge
 sudo systemctl enable titan-edge
+sleep 10
 # 绑定设备
 /usr/local/bin/titan-edge bind --hash=$HASH https://api-test1.container1.titannet.io/api/v2/device/binding
 # 检查空闲磁盘空间，单位为GB
