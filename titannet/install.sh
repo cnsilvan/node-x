@@ -16,7 +16,8 @@ tar -xzvf titan-edge_v0.1.20_246b9dd_linux-amd64.tar.gz
 cd titan-edge_v0.1.20_246b9dd_linux-amd64
 sudo cp titan-edge /usr/local/bin
 sudo cp libgoworkerd.so /usr/local/lib
-
+rm -rf titan-edge_v0.1.20_246b9dd_linux-amd64
+rm titan-edge_v0.1.20_246b9dd_linux-amd64.tar.gz
 # 更新共享库缓存
 sudo ldconfig
 # 获取当前登录用户
