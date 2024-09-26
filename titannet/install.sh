@@ -8,6 +8,7 @@ fi
 
 HASH=$1
 echo "HASH=${HASH}"
+sudo systemctl stop titan-edge
 # 下载文件
 curl -L -o titan-edge_v0.1.20_246b9dd_linux-amd64.tar.gz https://github.com/Titannet-dao/titan-node/releases/download/v0.1.20/titan-edge_v0.1.20_246b9dd_linux-amd64.tar.gz
 tar -xzvf titan-edge_v0.1.20_246b9dd_linux-amd64.tar.gz
@@ -16,6 +17,8 @@ tar -xzvf titan-edge_v0.1.20_246b9dd_linux-amd64.tar.gz
 cd titan-edge_v0.1.20_246b9dd_linux-amd64
 sudo cp titan-edge /usr/local/bin
 sudo cp libgoworkerd.so /usr/local/lib
+rm -rf ~/titan-edge_v0.1.20_246b9dd_linux-amd64
+rm ~/titan-edge_v0.1.20_246b9dd_linux-amd64.tar.gz
 # 更新共享库缓存
 sudo ldconfig
 # 获取当前登录用户
@@ -45,9 +48,6 @@ sudo systemctl daemon-reload
 # 启动并启用 titan-edge 服务
 sudo systemctl start titan-edge
 sudo systemctl enable titan-edge
-
-rm -rf titan-edge_v0.1.20_246b9dd_linux-amd64
-rm titan-edge_v0.1.20_246b9dd_linux-amd64.tar.gz
 
 sleep 10
 # 绑定设备
