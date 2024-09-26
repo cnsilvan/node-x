@@ -16,8 +16,6 @@ tar -xzvf titan-edge_v0.1.20_246b9dd_linux-amd64.tar.gz
 cd titan-edge_v0.1.20_246b9dd_linux-amd64
 sudo cp titan-edge /usr/local/bin
 sudo cp libgoworkerd.so /usr/local/lib
-rm -rf titan-edge_v0.1.20_246b9dd_linux-amd64
-rm titan-edge_v0.1.20_246b9dd_linux-amd64.tar.gz
 # 更新共享库缓存
 sudo ldconfig
 # 获取当前登录用户
@@ -47,6 +45,10 @@ sudo systemctl daemon-reload
 # 启动并启用 titan-edge 服务
 sudo systemctl start titan-edge
 sudo systemctl enable titan-edge
+
+rm -rf titan-edge_v0.1.20_246b9dd_linux-amd64
+rm titan-edge_v0.1.20_246b9dd_linux-amd64.tar.gz
+
 sleep 10
 # 绑定设备
 /usr/local/bin/titan-edge bind --hash=$HASH https://api-test1.container1.titannet.io/api/v2/device/binding
