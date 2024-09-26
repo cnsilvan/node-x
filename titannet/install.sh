@@ -12,13 +12,11 @@ sudo systemctl stop titan-edge
 # 下载文件
 curl -L -o titan-edge_v0.1.20_246b9dd_linux-amd64.tar.gz https://github.com/Titannet-dao/titan-node/releases/download/v0.1.20/titan-edge_v0.1.20_246b9dd_linux-amd64.tar.gz
 tar -xzvf titan-edge_v0.1.20_246b9dd_linux-amd64.tar.gz
-
-# 进入文件夹并复制文件
-cd titan-edge_v0.1.20_246b9dd_linux-amd64
-sudo cp titan-edge /usr/local/bin
-sudo cp libgoworkerd.so /usr/local/lib
-rm -rf ~/titan-edge_v0.1.20_246b9dd_linux-amd64
-rm ~/titan-edge_v0.1.20_246b9dd_linux-amd64.tar.gz
+# 复制文件
+sudo cp titan-edge_v0.1.20_246b9dd_linux-amd64/titan-edge /usr/local/bin
+sudo cp titan-edge_v0.1.20_246b9dd_linux-amd64/libgoworkerd.so /usr/local/lib
+rm -rf titan-edge_v0.1.20_246b9dd_linux-amd64
+rm titan-edge_v0.1.20_246b9dd_linux-amd64.tar.gz
 # 更新共享库缓存
 sudo ldconfig
 # 获取当前登录用户
