@@ -1,14 +1,13 @@
 [SwitchyOmega Conditions]
-@with result
+; Require: SwitchyOmega >= 2.3.2
+; By Node-x
 
-*.kekkai.io +proxy
-*.getgrass.io +proxy
-*,getgrass.io +proxy
-*.bigdatacloud.net +proxy
-*.wynd.network +proxy
-*.clarity.ms +proxy
-*.gradient.network +proxy
-clarity.ms +proxy
-*.blockmesh.xyz +proxy
-
-* +direct
+*.kekkai.io
+*.getgrass.io
+*,getgrass.io
+*.bigdatacloud.net
+*.wynd.network
+*.clarity.ms
+*.gradient.network
+clarity.ms
+*.blockmesh.xyz
