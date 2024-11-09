@@ -1,0 +1,14 @@
+[SwitchyOmega Conditions]
+@with result
+
+*.kekkai.io +proxy
+*.getgrass.io +proxy
+*,getgrass.io +proxy
+*.bigdatacloud.net +proxy
+*.wynd.network +proxy
+*.clarity.ms +proxy
+*.gradient.network +proxy
+clarity.ms +proxy
+*.blockmesh.xyz +proxy
+
+* +direct
