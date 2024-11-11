@@ -50,6 +50,10 @@ elif [ "$1" == "install_docker" ]; then
     install_docker
 elif [ "$1" == "install_nodejs_and_npm" ]; then
     install_nodejs_and_npm
+elif [ "$1" == "all" ]; then
+    install_docker
+    install_nodejs_and_npm
+    install_pm2
 else
     echo "❌ Unknown function. Available functions: install_pm2, install_docker, install_nodejs_and_npm"
     exit 1
