@@ -8,6 +8,7 @@ fi
 
 HASH=$1
 echo "HASH=${HASH}"
+apt install jq -y
 sudo systemctl stop titan-edge
 # 下载文件
 curl -L -o titan-edge_v0.1.20_246b9dd_linux-amd64.tar.gz https://github.com/Titannet-dao/titan-node/releases/download/v0.1.20/titan-edge_v0.1.20_246b9dd_linux-amd64.tar.gz
