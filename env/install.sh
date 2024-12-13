@@ -41,7 +41,7 @@ function install_pm2() {
     echo "✅ PM2 is installed.version: $(pm2 -v)"
   else
     echo "Install PM2..."
-    npm install pm2@latest -g
+    sudo npm install pm2@latest -g
   fi
 }
 if [ "$1" == "install_pm2" ]; then
