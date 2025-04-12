@@ -13,11 +13,11 @@ redeem_output=$(run_as_stv stv redeem 2>&1)
 exit_code=$?
 
 # 调试信息（可选）
-echo "----- 调试信息 -----"
-echo "命令退出码: $exit_code"
-echo "原始输出:"
-echo "$redeem_output"
-echo "-------------------"
+#echo "----- 调试信息 -----"
+#echo "命令退出码: $exit_code"
+#echo "原始输出:"
+#echo "$redeem_output"
+#echo "-------------------"
 
 # 根据输出处理逻辑
 if echo "$redeem_output" | grep -q "Node address has already been awarded"; then
