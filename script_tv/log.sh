@@ -14,13 +14,13 @@ if echo "$redeem_output" | grep -q "Node address has already been awarded"; then
     echo "----------------------------------------"
     
     # 执行 stv -a status 并打印
-    status_output=$(run_as_stv stv -a status)
+    status_output=$(stv -a status)
     echo "[stv -a status 输出]"
     echo "$status_output"
     echo "----------------------------------------"
     
     # 执行 stv node_status 并打印
-    node_status_output=$(run_as_stv stv node_status -a)
+    node_status_output=$(stv node_status -a)
     echo "[stv node_status 输出]"
     echo "$node_status_output"
 
