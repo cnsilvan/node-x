@@ -16,6 +16,9 @@ PIDS=$(pgrep -u stv)
 TOTAL_CPU=0
 TOTAL_RSS=0  # 内存占用（单位：KB）
 
+# 获取 CPU 核心数
+CPU_CORES=$(nproc)
+
 # 遍历每个 PID 获取资源使用
 for PID in $PIDS; do
   # 获取 CPU 使用率（百分比）和内存占用（KB）
@@ -26,6 +29,13 @@ for PID in $PIDS; do
   TOTAL_CPU=$(echo "$TOTAL_CPU + $CPU_USAGE" | bc)
   TOTAL_RSS=$(echo "$TOTAL_RSS + $RSS_KB" | bc)
 done
+
+# 计算相对于单个 CPU 的占用率（最高为 100%）
+RELATIVE_CPU=$(echo "scale=2; $TOTAL_CPU / $CPU_CORES" | bc)
+# 如果超过 100%，则限制为 100%
+if (( $(echo "$RELATIVE_CPU > 100" | bc -l) )); then
+  RELATIVE_CPU=100.00
+fi
 
 # 获取系统总内存（KB）
 TOTAL_SYS_MEM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
@@ -41,7 +51,9 @@ MEM_PERCENT=$(echo "scale=2; ${TOTAL_RSS:-0} * 100 / ${TOTAL_SYS_MEM_KB:-1}" | b
 # 生成监控报告
 MONITOR_REPORT=$(cat <<EOF
 ================ stv 进程资源监控 ================
-[CPU] 总占用率: ${TOTAL_CPU:-0}%  
+[CPU] 总占用率: ${RELATIVE_CPU:-0}% (相对于单个 CPU，最高 100%)
+[CPU] 原始占用率: ${TOTAL_CPU:-0}% (所有核心总和)
+[CPU] 系统核心数: ${CPU_CORES}
 [MEM] 总内存占用: ${TOTAL_MEM_GB:-0} GB
 [MEM] 系统总内存: ${TOTAL_SYS_MEM_GB:-0} GB
 [MEM] 内存占比: ${MEM_PERCENT:-0}%
