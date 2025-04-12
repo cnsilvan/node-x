@@ -1,12 +1,13 @@
 #!/bin/bash
 
-# 定义以 stv 用户执行命令的函数（彻底修复路径问题）
+# 定义以 stv 用户执行命令的函数（修复参数传递）
 run_as_stv() {
-    # 使用绝对路径执行命令，并显式加载用户环境
-    sudo -u stv /bin/bash -i -c "cd \$HOME && $@"
+    # 使用数组传递参数，确保参数完整性
+    local cmd_args=("$@")
+    sudo -u stv /bin/bash -i -c "cd \$HOME && $(printf "%q " "${cmd_args[@]}")"
 }
 
-# 捕获错误并打印详细信息
+# 执行 stv redeem 并捕获输出
 echo "正在执行节点检查..."
 redeem_output=$(run_as_stv stv redeem 2>&1)
 exit_code=$?
