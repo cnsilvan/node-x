@@ -4,7 +4,7 @@
 run_as_stv() {
     sudo -u stv "$@"
 }
-sudo -u stv
+su stv
 # 执行 stv redeem 并捕获输出
 redeem_output=$(stv redeem 2>&1)
 
