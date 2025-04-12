@@ -1,41 +1,50 @@
 #!/bin/bash
 
-# 定义以 stv 用户执行命令的函数
-# 添加显式的工作目录切换（避免在 /root 执行）
+# 定义以 stv 用户执行命令的函数（彻底修复路径问题）
 run_as_stv() {
-    sudo -u stv /bin/bash -c "cd ~ && $@"
+    # 使用绝对路径执行命令，并显式加载用户环境
+    sudo -u stv /bin/bash -i -c "cd \$HOME && $@"
 }
-# 执行 stv redeem 并捕获输出
+
+# 捕获错误并打印详细信息
+echo "正在执行节点检查..."
 redeem_output=$(run_as_stv stv redeem 2>&1)
+exit_code=$?
 
-# 情况1：检测到 "KO 40393 backend error"（已绑定）
+# 调试信息（可选）
+echo "----- 调试信息 -----"
+echo "命令退出码: $exit_code"
+echo "原始输出:"
+echo "$redeem_output"
+echo "-------------------"
+
+# 根据输出处理逻辑
 if echo "$redeem_output" | grep -q "Node address has already been awarded"; then
-    echo "节点已绑定，正在获取状态信息..."
+    echo "✅ 节点已绑定，正在获取状态..."
+    echo "========================================"
+    echo "[网络状态]"
+    run_as_stv stv -a status
     echo "----------------------------------------"
-    
-    # 执行 stv -a status 并打印
-    status_output=$(run_as_stv stv -a status)
-    echo "[stv -a status 输出]"
-    echo "$status_output"
-    echo "----------------------------------------"
-    
-    # 执行 stv node_status 并打印
-    node_status_output=$(run_as_stv stv node_status -a)
-    echo "[stv node_status 输出]"
-    echo "$node_status_output"
+    echo "[节点状态]"
+    run_as_stv stv node_status -a
 
-# 情况2：检测到 redeem 链接（未绑定）
 elif echo "$redeem_output" | grep -q "https://redeem-mainnet.script.tv/?ssid="; then
+    echo "🔗 未绑定节点，请操作："
     echo "$redeem_output"
-    echo "----------------------------------------"
-    echo "请前往上方地址完成绑定："
-    echo "1. 使用你购买过许可的钱包登录"
-    echo "2. 完成绑定后，等待1分钟"
-    echo "3. 重新运行此脚本检查节点状态"
+    echo "========================================"
+    echo "操作指引："
+    echo "1. 打开上方链接 > 使用授权钱包登录"
+    echo "2. 完成绑定后等待 1 分钟"
+    echo "3. 重新运行本脚本检查状态"
 
-# 其他情况（异常）
 else
-    echo "未知响应:"
-    echo "$redeem_output"
+    echo "❌ 严重错误，请检查以下问题：" >&2
+    echo "$redeem_output" >&2
+    echo "========================================" >&2
+    echo "常见问题排查：" >&2
+    echo "1. 确认 stv 用户已正确安装 CLI 工具"
+    echo "2. 检查网络连接是否正常"
+    echo "3. 手动验证命令是否可执行："
+    echo "   sudo -u stv stv redeem"
     exit 1
 fi
