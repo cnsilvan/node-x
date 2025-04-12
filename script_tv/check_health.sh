@@ -1,10 +1,15 @@
 #!/bin/bash
-stv
-# 初始化健康状态为 false
+
+# 定义以 stv 用户执行命令的函数（避免重复代码）
+run_as_stv() {
+    sudo -u stv "$@"
+}
+
+# 初始化健康状态为 true
 is_healthy=true
 
 # 检查第一个条件：同步状态
-if ! syncing_output=$(stv -a status 2>/dev/null); then
+if ! syncing_output=$(run_as_stv stv -a status 2>/dev/null); then
     echo "false"
     exit 0
 fi
@@ -31,7 +36,7 @@ else
 fi
 
 # 检查第二个条件：节点状态摘要
-if ! node_status_output=$(stv node_status -a 2>/dev/null); then
+if ! node_status_output=$(run_as_stv stv node_status -a 2>/dev/null); then
     echo "false"
     exit 0
 fi
@@ -46,7 +51,7 @@ else
     fi
 fi
 
-# 最终输出结果
+# 输出最终结果
 if [[ "$is_healthy" == "true" ]]; then
     echo "true"
 else
