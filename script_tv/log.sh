@@ -9,7 +9,7 @@ run_as_stv() {
 redeem_output=$(run_as_stv stv redeem 2>&1)
 
 # 情况1：检测到 "KO 40393 backend error"（已绑定）
-if echo "$redeem_output" | grep -q "KO 40393 backend error. Received: Node address has already been awarded"; then
+if echo "$redeem_output" | grep -q "Node address has already been awarded"; then
     echo "节点已绑定，正在获取状态信息..."
     echo "----------------------------------------"
     
