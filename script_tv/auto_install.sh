@@ -6,7 +6,7 @@ mkdir -p $LOG_DIR
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 
 main() {
-  apt install curl -y
+  apt install curl jq -y
   # 原检测逻辑
   if [ -f /etc/os-release ]; then
     source /etc/os-release
