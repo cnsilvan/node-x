@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # 定义以 stv 用户执行命令的函数
+# 添加显式的工作目录切换（避免在 /root 执行）
 run_as_stv() {
-    sudo -u stv "$@"
+    sudo -u stv /bin/bash -c "cd ~ && $@"
 }
 # 执行 stv redeem 并捕获输出
 redeem_output=$(run_as_stv stv redeem 2>&1)
