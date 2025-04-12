@@ -4,9 +4,9 @@
 run_as_stv() {
     sudo -u stv "$@"
 }
-
+sudo -u stv
 # 执行 stv redeem 并捕获输出
-redeem_output=$(run_as_stv stv redeem 2>&1)
+redeem_output=$(stv redeem 2>&1)
 
 # 情况1：检测到 "KO 40393 backend error"（已绑定）
 if echo "$redeem_output" | grep -q "Node address has already been awarded"; then
