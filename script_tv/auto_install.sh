@@ -7,6 +7,15 @@ TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 
 main() {
   apt install curl jq -y
+  PID=$(ps -u stv -o pid,cmd | grep -w "script_tv__script4__wallet" | awk '{print $1}')
+  Name="Script_TV"
+
+  if [ -n "$PID" ]; then
+    echo "$Name is running: $PID"
+    exit 1
+  else
+    echo "$Name is not running"
+  fi
   # 原检测逻辑
   if [ -f /etc/os-release ]; then
     source /etc/os-release
