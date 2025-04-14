@@ -910,13 +910,13 @@ else
     DEBIAN_FRONTEND=noninteractive apt-get install -y bc coreutils dpkg jq libcrypto++8 libcurl4 libsecp256k1-1 mongodb-org nginx nmap nodejs openssl rsync wamerican || {
         echo "Attempting to install packages individually..."
         for pkg in bc coreutils dpkg jq libcrypto++8 libcurl4 libsecp256k1-1 nginx nmap nodejs openssl rsync wamerican; do
-            apt-get install -y $pkg || echo "Warning: Failed to install $pkg"
+            apt install -y $pkg || echo "Warning: Failed to install $pkg"
         done
 
         # Try MongoDB separately
-        apt-get install -y mongodb-org || echo "Warning: Failed to install mongodb-org, trying alternatives..."
+        apt install -y mongodb-org || echo "Warning: Failed to install mongodb-org, trying alternatives..."
         if ! systemctl status mongod >/dev/null 2>&1; then
-            apt-get install -y mongodb || echo "Warning: Failed to install mongodb"
+            apt install -y mongodb || echo "Warning: Failed to install mongodb"
         fi
     }
 
