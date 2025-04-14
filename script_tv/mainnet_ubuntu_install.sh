@@ -875,7 +875,7 @@ else
     # 定义版本映射
     declare -A mongo_version_map=(
         ["noble"]="8.0"    # Ubuntu 24.04
-        ["jammy"]="6.0"   # Ubuntu 22.04
+        ["jammy"]="8.0"   # Ubuntu 22.04
         ["focal"]="6.0"   # Ubuntu 20.04
         ["bionic"]="6.0"  # Ubuntu 18.04
     )
