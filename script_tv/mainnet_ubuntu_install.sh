@@ -868,7 +868,7 @@ if [[ ${only_download} -eq 1 ]]; then
     libfn_user__only_download
 else
     # Ubuntu-specific package installation
-    echo "installing apt packages: bc coreutils dpkg jq libcrypto++8 libcurl4 libsecp256k1-1 mongodb-org nginx nmap nodejs openssl rsync wamerican"
+    echo "installing apt packages: bc coreutils dpkg jq libcrypto++8 libcurl4 libsecp256k1-dev mongodb-org nginx nmap nodejs openssl rsync wamerican"
     # 获取系统代号
     ubuntu_codename=$(lsb_release -cs)
 
@@ -907,9 +907,9 @@ else
     fi
 
     # Install packages with error handling
-    DEBIAN_FRONTEND=noninteractive apt-get install -y bc coreutils dpkg jq libcrypto++8 libcurl4 libsecp256k1-1 mongodb-org nginx nmap nodejs openssl rsync wamerican || {
+    DEBIAN_FRONTEND=noninteractive apt-get install -y bc coreutils dpkg jq libcrypto++8 libcurl4 libsecp256k1-dev mongodb-org nginx nmap nodejs openssl rsync wamerican || {
         echo "Attempting to install packages individually..."
-        for pkg in bc coreutils dpkg jq libcrypto++8 libcurl4 libsecp256k1-1 nginx nmap nodejs openssl rsync wamerican; do
+        for pkg in bc coreutils dpkg jq libcrypto++8 libcurl4 libsecp256k1-dev nginx nmap nodejs openssl rsync wamerican; do
             apt install -y $pkg || echo "Warning: Failed to install $pkg"
         done
 
