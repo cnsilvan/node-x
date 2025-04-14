@@ -876,8 +876,8 @@ else
     declare -A mongo_version_map=(
         ["noble"]="8.0"    # Ubuntu 24.04
         ["jammy"]="8.0"   # Ubuntu 22.04
-        ["focal"]="6.0"   # Ubuntu 20.04
-        ["bionic"]="6.0"  # Ubuntu 18.04
+        ["focal"]="8.0"   # Ubuntu 20.04
+        ["bionic"]="7.0"  # Ubuntu 18.04
     )
         # 检查系统支持
     if [[ ! -v mongo_version_map[$ubuntu_codename] ]]; then
