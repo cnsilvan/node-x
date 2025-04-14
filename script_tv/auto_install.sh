@@ -21,7 +21,17 @@ main() {
     source /etc/os-release
     case "$ID" in
       ubuntu)
-        run_ubuntu_install
+        # Extract major version number
+        UBUNTU_VERSION=$(echo "$VERSION_ID" | cut -d. -f1)
+        
+        # Check if version is 23 or higher
+        if [ "$UBUNTU_VERSION" -ge 23 ]; then
+          echo "Ubuntu version $VERSION_ID detected (OK)"
+          run_ubuntu_install
+        else
+          echo "Error: Ubuntu必须大于等于23版本. 当前版本: $VERSION_ID" >&2
+          exit 1
+        fi
         ;;
       debian)
         run_debian_install
