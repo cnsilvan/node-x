@@ -893,6 +893,7 @@ else
         apt install -y gnupg
         gpg_key="/usr/share/keyrings/mongodb-server-${mongo_major}.gpg"
         repo_url="https://pgp.mongodb.com/server-${mongo_major}.asc"
+        sudo rm ${gpg_key}
         if ! curl -fsSL $repo_url | gpg -o $gpg_key --dearmor; then
         echo "ERROR: Failed to import MongoDB GPG key"
         exit 1
