@@ -96,7 +96,8 @@ else
     echo "❌ 严重错误，请检查以下问题：" >&2
     echo "$redeem_output" >&2
     echo "========================================" >&2
-    cat ~/stv_install.log | grep -E 'Warning|E'
+    # cat ~/stv_install.log | grep -E 'Warning|E'
+    tail -n 50 ~/stv_install.log
     echo "常见问题排查：" >&2
     echo "1. 确认 stv 用户已正确安装 CLI 工具"
     echo "2. 检查网络连接是否正常"
