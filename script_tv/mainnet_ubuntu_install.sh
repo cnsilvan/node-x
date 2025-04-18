@@ -69,15 +69,15 @@ method=$opt
 
 
 title="Script Network Node - mainnet"
-tar_checksum__expected="40dceba19ac46509e27e6b895db828dd899cd09c397b945aba3d7549413a4b83"
-tar_size__expected="100781266"
+tar_checksum__expected="da013bd8a426a8aa3fedb0afd7d85940e239dd8c50401c01d2443b1a5c1122f6"
+tar_size__expected="100788016"
 dir="script_tv-node-mainnet_debian_11_x86_64"
 tar="${dir}.tgz"
 tar_url="https://downloads-lon.s3.eu-west-2.amazonaws.com/${tar}"
 orig_domain="script.tv"
 wget="wget -q"
 b2c_url="script.tv"
-monotonic_version="1744372022"
+monotonic_version="1744807996"
 
 
 libfn_user__print_env() {
