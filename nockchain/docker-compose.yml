@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  nockchain:
+    image: cnsilvan/nockchain:latest
+    container_name: nockchain
+    restart: unless-stopped
+    volumes:
+      - nockchain-data:/data
+    environment:
+      - MINING_MODE=true  # 设置为true开启挖矿，false为普通节点
+      - RUST_LOG=info,nockchain=debug,nockchain_libp2p_io=info
+      # 可选: 指定挖矿公钥 (如果不指定则使用容器内生成的钱包)
+      # - MINING_PUBKEY=your_public_key_here
+      # 可选: 指定P2P端口
+      # - PEER_PORT=9000
+      # 可选: 指定绑定地址
+      # - BIND_ADDRESS=/ip4/0.0.0.0/udp/9000/quic-v1
+    ports:
+      - "9000:9000/udp"  # P2P通信端口
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+  
+  # 自动更新服务
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 3600 --cleanup --label-enable
+    restart: unless-stopped
+
+volumes:
+  nockchain-data:
+    driver: local
