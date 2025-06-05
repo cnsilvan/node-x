@@ -258,9 +258,10 @@ show_rpc_url() {
     local rpc_password=$(echo "$rpc_info" | cut -d':' -f2)
     local rpc_host=$(echo "$rpc_info" | cut -d':' -f3)
     local rpc_port=$(echo "$rpc_info" | cut -d':' -f4)
-
-    # 构建完整的RPC URL
-    local rpc_url="http://${rpc_user}:${rpc_password}@${rpc_host}:${rpc_port}/"
+    
+    # 获取IP地址信息
+    local local_ip=$(get_local_ip)
+    local public_ip=$(get_public_ip)
 
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -268,10 +269,20 @@ show_rpc_url() {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
     echo -e "${YELLOW}网络类型:${NC} $BITCOIN_NETWORK"
-    echo -e "${YELLOW}RPC主机:${NC} $rpc_host"
     echo -e "${YELLOW}RPC端口:${NC} $rpc_port"
     echo -e "${YELLOW}RPC用户:${NC} $rpc_user"
     echo -e "${YELLOW}RPC密码:${NC} $rpc_password"
+    echo ""
+    echo -e "${GREEN}连接地址信息:${NC}"
+    echo -e "${YELLOW}本地连接:${NC} 127.0.0.1:$rpc_port"
+    if [ -n "$local_ip" ]; then
+        echo -e "${YELLOW}局域网连接:${NC} $local_ip:$rpc_port"
+    fi
+    if [ -n "$public_ip" ]; then
+        echo -e "${YELLOW}公网连接:${NC} $public_ip:$rpc_port"
+    else
+        echo -e "${YELLOW}公网连接:${NC} 无法获取公网IP (检查网络连接)"
+    fi
     
     # 显示配置模式信息
     if grep -q "^prune=" "$BITCOIN_CONF_FILE" 2>/dev/null; then
@@ -289,28 +300,61 @@ show_rpc_url() {
     fi
     
     echo ""
-    echo -e "${GREEN}完整RPC URL:${NC}"
-    echo -e "${YELLOW}$rpc_url${NC}"
+    echo -e "${GREEN}RPC连接URL:${NC}"
+    echo -e "${YELLOW}本地连接:${NC} http://${rpc_user}:${rpc_password}@127.0.0.1:${rpc_port}/"
+    if [ -n "$local_ip" ]; then
+        echo -e "${YELLOW}局域网连接:${NC} http://${rpc_user}:${rpc_password}@${local_ip}:${rpc_port}/"
+    fi
+    if [ -n "$public_ip" ]; then
+        echo -e "${YELLOW}公网连接:${NC} http://${rpc_user}:${rpc_password}@${public_ip}:${rpc_port}/"
+    fi
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
     echo -e "${GREEN}使用示例:${NC}"
     echo ""
-    echo -e "${YELLOW}curl命令示例:${NC}"
-    echo "curl -u \"$rpc_user:$rpc_password\" -d '{\"jsonrpc\":\"1.0\",\"id\":\"test\",\"method\":\"getblockchaininfo\",\"params\":[]}' -H 'content-type: text/plain;' http://$rpc_host:$rpc_port/"
+    echo -e "${YELLOW}curl命令示例 (本地):${NC}"
+    echo "curl -u \"$rpc_user:$rpc_password\" -d '{\"jsonrpc\":\"1.0\",\"id\":\"test\",\"method\":\"getblockchaininfo\",\"params\":[]}' -H 'content-type: text/plain;' http://127.0.0.1:$rpc_port/"
+    
+    if [ -n "$public_ip" ]; then
+        echo ""
+        echo -e "${YELLOW}curl命令示例 (公网):${NC}"
+        echo "curl -u \"$rpc_user:$rpc_password\" -d '{\"jsonrpc\":\"1.0\",\"id\":\"test\",\"method\":\"getblockchaininfo\",\"params\":[]}' -H 'content-type: text/plain;' http://$public_ip:$rpc_port/"
+    fi
+    
     echo ""
-    echo -e "${YELLOW}Python示例:${NC}"
+    echo -e "${YELLOW}Python示例 (本地):${NC}"
     echo "import requests"
-    echo "rpc_url = '$rpc_url'"
+    echo "rpc_url = 'http://${rpc_user}:${rpc_password}@127.0.0.1:${rpc_port}/'"
     echo "payload = {\"jsonrpc\":\"1.0\",\"id\":\"test\",\"method\":\"getblockchaininfo\",\"params\":[]}"
     echo "response = requests.post(rpc_url, json=payload)"
     echo "print(response.json())"
+    
+    if [ -n "$public_ip" ]; then
+        echo ""
+        echo -e "${YELLOW}Python示例 (公网):${NC}"
+        echo "import requests"
+        echo "rpc_url = 'http://${rpc_user}:${rpc_password}@${public_ip}:${rpc_port}/'"
+        echo "payload = {\"jsonrpc\":\"1.0\",\"id\":\"test\",\"method\":\"getblockchaininfo\",\"params\":[]}"
+        echo "response = requests.post(rpc_url, json=payload)"
+        echo "print(response.json())"
+    fi
+    
     echo ""
-    echo -e "${YELLOW}Node.js示例:${NC}"
+    echo -e "${YELLOW}Node.js示例 (本地):${NC}"
     echo "const axios = require('axios');"
-    echo "const rpcUrl = '$rpc_url';"
+    echo "const rpcUrl = 'http://${rpc_user}:${rpc_password}@127.0.0.1:${rpc_port}/';"
     echo "const payload = {jsonrpc:'1.0',id:'test',method:'getblockchaininfo',params:[]};"
     echo "axios.post(rpcUrl, payload).then(res => console.log(res.data));"
+    
+    if [ -n "$public_ip" ]; then
+        echo ""
+        echo -e "${YELLOW}Node.js示例 (公网):${NC}"
+        echo "const axios = require('axios');"
+        echo "const rpcUrl = 'http://${rpc_user}:${rpc_password}@${public_ip}:${rpc_port}/';"
+        echo "const payload = {jsonrpc:'1.0',id:'test',method:'getblockchaininfo',params:[]};"
+        echo "axios.post(rpcUrl, payload).then(res => console.log(res.data));"
+    fi
     echo ""
     
     # 测试RPC连接
@@ -333,10 +377,14 @@ show_rpc_url() {
     
     # 安全提醒
     echo -e "${RED}⚠️  安全提醒:${NC}"
-    echo "• RPC密码包含敏感信息，请勿在不安全的环境中分享"
-    echo "• 默认情况下，RPC服务绑定到 (0.0.0.0)"
-    echo "• 如需远程访问，请配置防火墙和安全策略"
-    echo "• 建议定期更换RPC密码"
+    echo "• RPC已绑定到0.0.0.0，允许远程访问"
+    echo "• 公网连接存在安全风险，请确保："
+    echo "  - 防火墙已正确配置，限制访问源"
+    echo "  - 使用强密码和HTTPS(如适用)"
+    echo "  - 定期更换RPC密码"
+    echo "  - 不要在不安全的网络环境中暴露"
+    echo "• 建议使用VPN或SSH隧道进行远程访问"
+    echo "• 生产环境建议绑定到特定IP而非0.0.0.0"
     echo ""
 }
 
@@ -352,7 +400,8 @@ get_rpc_url_only() {
     local rpc_host=$(echo "$rpc_info" | cut -d':' -f3)
     local rpc_port=$(echo "$rpc_info" | cut -d':' -f4)
 
-    echo "http://${rpc_user}:${rpc_password}@${rpc_host}:${rpc_port}/"
+    # 默认返回本地连接，避免安全风险
+    echo "http://${rpc_user}:${rpc_password}@127.0.0.1:${rpc_port}/"
 }
 
 # 检查系统资源
@@ -556,6 +605,7 @@ rpcuser=bitcoinrpc
 rpcpassword=$rpc_password
 rpcbind=0.0.0.0
 rpcport=$DEFAULT_RPC_PORT
+rpcallowip=0.0.0.0/0
 $( [ "$BITCOIN_NETWORK" = "testnet" ] && echo "testnet=1" || echo "" )
 $( [ "$PRUNE_MODE" = "true" ] && echo "prune=$((PRUNE_SIZE_GB * 1000))" || echo "" )
 disablewallet=1
@@ -582,6 +632,7 @@ EOF
     fi
     log_info "钱包功能: 禁用"
     log_info "RPC端口: $DEFAULT_RPC_PORT"
+    log_warn "RPC已绑定到0.0.0.0，请注意安全防护"
     
     # 启动服务
     start_service
@@ -1058,6 +1109,60 @@ show_help() {
     echo ""
     echo "nohup使用示例:"
     echo "  nohup $0 --force install > install.log 2>&1 &"
+}
+
+# 获取公网IP地址
+get_public_ip() {
+    local public_ip=""
+    
+    # 尝试多个服务获取公网IP
+    local ip_services=(
+        "https://ipv4.icanhazip.com"
+        "https://api.ipify.org"
+        "https://checkip.amazonaws.com"
+        "https://ipecho.net/plain"
+        "https://ident.me"
+    )
+    
+    for service in "${ip_services[@]}"; do
+        if command -v curl >/dev/null 2>&1; then
+            public_ip=$(curl -s --connect-timeout 5 --max-time 10 "$service" 2>/dev/null | tr -d '\n\r' | head -c 15)
+        elif command -v wget >/dev/null 2>&1; then
+            public_ip=$(wget -qO- --timeout=10 "$service" 2>/dev/null | tr -d '\n\r' | head -c 15)
+        fi
+        
+        # 验证IP格式
+        if [[ $public_ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+            echo "$public_ip"
+            return 0
+        fi
+    done
+    
+    # 如果都失败了，返回空
+    echo ""
+    return 1
+}
+
+# 获取本地IP地址
+get_local_ip() {
+    local local_ip=""
+    
+    case "$OS_FAMILY" in
+        darwin)
+            # macOS
+            local_ip=$(ifconfig | grep "inet " | grep -v "127.0.0.1" | head -n1 | awk '{print $2}')
+            ;;
+        *)
+            # Linux
+            local_ip=$(ip route get 8.8.8.8 2>/dev/null | grep -oP 'src \K\S+' | head -n1)
+            if [ -z "$local_ip" ]; then
+                # 备用方法
+                local_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+            fi
+            ;;
+    esac
+    
+    echo "$local_ip"
 }
 
 # 主程序
