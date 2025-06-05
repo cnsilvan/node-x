@@ -340,7 +340,67 @@ view_logs() {
         sudo journalctl -u bitcoind -n 100 --no-pager
     fi
 }
+# 查看同步进度并预计同步完成时间
+sync_progress() {
+    if ! command -v bitcoin-cli >/dev/null 2>&1; then
+        log_error "未找到 bitcoin-cli 命令，请确认是否已安装 Bitcoin Core"
+        exit 1
+    fi
 
+    if ! bitcoin-cli -conf="$BITCOIN_CONF_FILE" -datadir="$BITCOIN_DATA_DIR" getblockchaininfo >/dev/null 2>&1; then
+        log_error "无法连接 Bitcoin 节点，请确认节点是否已启动"
+        exit 1
+    fi
+
+    local info=$(bitcoin-cli -conf="$BITCOIN_CONF_FILE" -datadir="$BITCOIN_DATA_DIR" getblockchaininfo)
+    local progress=$(echo "$info" | grep -o '"verificationprogress":[0-9.]*' | cut -d':' -f2)
+    local blocks=$(echo "$info" | grep -o '"blocks":[0-9]*' | cut -d':' -f2)
+
+    if [ -z "$progress" ]; then
+        log_error "无法获取同步进度"
+        exit 1
+    fi
+
+    # 输出进度百分比
+    percent=$(echo "$progress * 100" | bc -l | xargs printf "%.2f")
+    echo -e "${GREEN}同步进度：$percent% （区块高度：$blocks）${NC}"
+
+    # 检查是否已经同步完毕
+    if (( $(echo "$progress >= 0.9999" | bc -l) )); then
+        echo -e "${GREEN}节点已同步完成。${NC}"
+        return 0
+    fi
+
+    # 获取上一次记录信息（可选功能：持久化）
+    tmp_file="/tmp/.bitcoin_sync_progress"
+    now_ts=$(date +%s)
+
+    if [ -f "$tmp_file" ]; then
+        last_line=$(tail -n1 "$tmp_file")
+        last_ts=$(echo "$last_line" | cut -d',' -f1)
+        last_progress=$(echo "$last_line" | cut -d',' -f2)
+        last_blocks=$(echo "$last_line" | cut -d',' -f3)
+
+        delta_time=$((now_ts - last_ts))
+        delta_progress=$(echo "$progress - $last_progress" | bc -l)
+        delta_blocks=$((blocks - last_blocks))
+
+        if (( delta_time > 0 )) && (( $(echo "$delta_progress > 0" | bc -l) )); then
+            speed=$(echo "$delta_progress / $delta_time" | bc -l)
+            remaining=$(echo "(1 - $progress) / $speed" | bc -l)
+            minutes=$(echo "$remaining / 60" | bc -l)
+            hours=$(echo "$minutes / 60" | bc -l)
+
+            eta=$(date -d "+$((remaining)) seconds" "+%Y-%m-%d %H:%M:%S")
+
+            echo -e "${YELLOW}预计剩余时间：$(printf "%.1f" $minutes) 分钟（约 $(printf "%.2f" $hours) 小时）"
+            echo -e "预计完成时间：$eta${NC}"
+        fi
+    fi
+
+    # 记录当前进度
+    echo "$now_ts,$progress,$blocks" > "$tmp_file"
+}
 # 显示帮助信息
 show_help() {
     echo "Bitcoin节点管理脚本"
@@ -358,6 +418,7 @@ show_help() {
     echo "  stop      - 停止节点"
     echo "  uninstall - 卸载节点"
     echo "  logs      - 查看最近100条日志"
+    echo "  sync      - 查看同步进度"
     echo ""
     echo "环境变量:"
     echo "  BITCOIN_NETWORK   - 网络类型 (mainnet|testnet, 默认: mainnet)"
@@ -440,6 +501,9 @@ main() {
             ;;
         logs)
             view_logs
+            ;;
+        sync)
+            sync_progress
             ;;
         *)
             log_error "未知命令: $COMMAND"
