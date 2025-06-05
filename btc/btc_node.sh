@@ -1,7 +1,9 @@
 #!/bin/bash
 
-# Bitcoin节点管理脚本
+# Bitcoin节点管理脚本 (多系统支持版本)
+# 支持系统: Ubuntu/Debian, CentOS/RHEL/Rocky/AlmaLinux, macOS
 # 使用方法: ./bitcoin_node.sh [--force] [--prune] [install|status|health|restart|stop|uninstall|logs|sync|rpc-url] [mainnet|testnet]
+# 远程执行: curl -fsSL https://raw.githubusercontent.com/your-repo/btc_node.sh | bash -s -- install
 # 环境变量:
 # BITCOIN_NETWORK: mainnet 或 testnet (默认: mainnet)
 # BITCOIN_DATA_DIR: 数据目录 (默认: ~/.bitcoin)
@@ -9,6 +11,154 @@
 # BITCOIN_PRUNE: 修剪模式 (默认: false)
 
 set -e
+
+# 检测操作系统
+detect_os() {
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        # Linux
+        if command -v lsb_release >/dev/null 2>&1; then
+            OS_ID=$(lsb_release -si | tr '[:upper:]' '[:lower:]')
+        elif [ -f /etc/os-release ]; then
+            OS_ID=$(grep "^ID=" /etc/os-release | cut -d'=' -f2 | tr -d '"' | tr '[:upper:]' '[:lower:]')
+        elif [ -f /etc/redhat-release ]; then
+            OS_ID="centos"
+        else
+            OS_ID="unknown"
+        fi
+        
+        case "$OS_ID" in
+            ubuntu|debian)
+                OS_FAMILY="debian"
+                PACKAGE_MANAGER="apt"
+                ;;
+            centos|rhel|rocky|almalinux|fedora)
+                OS_FAMILY="redhat"
+                PACKAGE_MANAGER="yum"
+                if command -v dnf >/dev/null 2>&1; then
+                    PACKAGE_MANAGER="dnf"
+                fi
+                ;;
+            *)
+                OS_FAMILY="unknown"
+                PACKAGE_MANAGER="unknown"
+                ;;
+        esac
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        OS_ID="macos"
+        OS_FAMILY="darwin"
+        PACKAGE_MANAGER="brew"
+    else
+        # 其他系统
+        OS_ID="unknown"
+        OS_FAMILY="unknown"
+        PACKAGE_MANAGER="unknown"
+    fi
+    
+    log_info "检测到操作系统: $OS_ID ($OS_FAMILY)"
+}
+
+# 检测CPU架构
+detect_arch() {
+    local arch=$(uname -m)
+    case "$arch" in
+        x86_64|amd64)
+            ARCH="x86_64"
+            ;;
+        aarch64|arm64)
+            ARCH="aarch64"
+            ;;
+        armv7l)
+            ARCH="arm"
+            ;;
+        *)
+            log_error "不支持的CPU架构: $arch"
+            exit 1
+            ;;
+    esac
+    log_info "检测到CPU架构: $ARCH"
+}
+
+# 多系统包安装函数
+install_packages() {
+    local packages="$1"
+    log_info "安装系统依赖包..."
+    
+    case "$PACKAGE_MANAGER" in
+        apt)
+            sudo apt update
+            sudo apt install -y $packages
+            ;;
+        yum|dnf)
+            sudo $PACKAGE_MANAGER update -y
+            sudo $PACKAGE_MANAGER install -y $packages
+            ;;
+        brew)
+            # macOS使用Homebrew
+            if ! command -v brew >/dev/null 2>&1; then
+                log_error "请先安装Homebrew: https://brew.sh"
+                exit 1
+            fi
+            brew install $packages
+            ;;
+        *)
+            log_error "不支持的包管理器: $PACKAGE_MANAGER"
+            exit 1
+            ;;
+    esac
+}
+
+# 检查并安装必要工具
+check_dependencies() {
+    local missing_tools=()
+    
+    # 检查基础工具
+    for tool in wget curl bc jq tar; do
+        if ! command -v $tool >/dev/null 2>&1; then
+            missing_tools+=($tool)
+        fi
+    done
+    
+    # 如果有缺失的工具，安装它们
+    if [ ${#missing_tools[@]} -gt 0 ]; then
+        log_info "安装缺失的工具: ${missing_tools[*]}"
+        case "$OS_FAMILY" in
+            debian)
+                install_packages "${missing_tools[*]}"
+                ;;
+            redhat)
+                # CentOS/RHEL可能需要特殊处理
+                local redhat_packages=""
+                for tool in "${missing_tools[@]}"; do
+                    case "$tool" in
+                        bc) redhat_packages="$redhat_packages bc" ;;
+                        jq) redhat_packages="$redhat_packages jq" ;;
+                        *) redhat_packages="$redhat_packages $tool" ;;
+                    esac
+                done
+                install_packages "$redhat_packages"
+                ;;
+            darwin)
+                install_packages "${missing_tools[*]}"
+                ;;
+        esac
+    fi
+}
+
+# 获取系统服务管理器类型
+get_service_manager() {
+    if command -v systemctl >/dev/null 2>&1; then
+        SERVICE_MANAGER="systemd"
+    elif command -v launchctl >/dev/null 2>&1; then
+        SERVICE_MANAGER="launchd"  # macOS
+    elif command -v service >/dev/null 2>&1; then
+        SERVICE_MANAGER="sysv"
+    else
+        SERVICE_MANAGER="none"
+        log_warn "未检测到服务管理器，将使用手动启动方式"
+    fi
+    log_info "服务管理器: $SERVICE_MANAGER"
+}
 
 # 默认配置
 BITCOIN_NETWORK=${BITCOIN_NETWORK:-"mainnet"}
@@ -21,6 +171,19 @@ PRUNE_MODE=false
 
 # 修剪模式配置 (GB)
 PRUNE_SIZE_GB=${PRUNE_SIZE_GB:-50}  # 默认保留50GB区块数据
+
+# 系统相关变量 (将在detect_os()中设置)
+OS_ID=""
+OS_FAMILY=""
+PACKAGE_MANAGER=""
+SERVICE_MANAGER=""
+ARCH=""
+
+# 初始化系统检测
+detect_os
+detect_arch
+get_service_manager
+check_dependencies
 
 # 根据网络类型设置配置
 if [ "$BITCOIN_NETWORK" = "testnet" ]; then
@@ -197,7 +360,24 @@ check_system_resources() {
     log_info "检查系统资源..."
     
     # 检查内存 (至少需要2GB)
-    total_mem=$(free -m | awk 'NR==2{printf "%.1f", $2/1024}')
+    case "$OS_FAMILY" in
+        darwin)
+            # macOS
+            total_mem_bytes=$(sysctl -n hw.memsize)
+            total_mem=$(echo "scale=1; $total_mem_bytes / 1024 / 1024 / 1024" | bc -l)
+            ;;
+        *)
+            # Linux
+            if command -v free >/dev/null 2>&1; then
+                total_mem=$(free -m | awk 'NR==2{printf "%.1f", $2/1024}')
+            else
+                # 备用方法
+                total_mem_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+                total_mem=$(echo "scale=1; $total_mem_kb / 1024 / 1024" | bc -l)
+            fi
+            ;;
+    esac
+    
     if (( $(echo "$total_mem < 2.0" | bc -l) )); then
         log_error "系统内存不足: ${total_mem}GB (推荐至少2GB)"
         return 1
@@ -205,7 +385,16 @@ check_system_resources() {
     log_info "内存检查通过: ${total_mem}GB"
     
     # 检查磁盘空间 - 根据修剪模式调整要求
-    available_space=$(df -BG "$HOME" | awk 'NR==2 {print $4}' | sed 's/G//')
+    case "$OS_FAMILY" in
+        darwin)
+            # macOS
+            available_space=$(df -g "$HOME" | awk 'NR==2 {print $4}')
+            ;;
+        *)
+            # Linux
+            available_space=$(df -BG "$HOME" | awk 'NR==2 {print $4}' | sed 's/G//')
+            ;;
+    esac
     
     if [ "$PRUNE_MODE" = "true" ]; then
         # 修剪模式: 保留数据大小 + 50GB缓冲
@@ -227,7 +416,15 @@ check_system_resources() {
     log_info "磁盘空间检查通过: ${available_space}GB"
     
     # 检查CPU核心数
-    cpu_cores=$(nproc)
+    case "$OS_FAMILY" in
+        darwin)
+            cpu_cores=$(sysctl -n hw.ncpu)
+            ;;
+        *)
+            cpu_cores=$(nproc)
+            ;;
+    esac
+    
     if [ "$cpu_cores" -lt 2 ]; then
         log_warn "CPU核心数较少: ${cpu_cores}核心 (推荐至少2核心)"
     else
@@ -239,7 +436,7 @@ check_system_resources() {
 
 # 安装Bitcoin节点
 install_bitcoin() {
-    log_info "开始安装Bitcoin节点 (网络: $BITCOIN_NETWORK)"
+    log_info "开始安装Bitcoin节点 (网络: $BITCOIN_NETWORK, 系统: $OS_ID, 架构: $ARCH)"
     
     # 检查系统资源
     if ! check_system_resources; then
@@ -261,27 +458,77 @@ install_bitcoin() {
     fi
     
     # 更新系统包
-    log_info "更新系统包..."
-    sudo apt update
-    sudo apt install -y wget curl bc jq
+    log_info "更新系统包并安装依赖..."
+    check_dependencies
+    
+    # 根据系统和架构确定下载文件
+    case "$OS_FAMILY" in
+        darwin)
+            if [ "$ARCH" = "aarch64" ]; then
+                BITCOIN_FILE="bitcoin-${BITCOIN_VERSION}-arm64-apple-darwin.tar.gz"
+            else
+                BITCOIN_FILE="bitcoin-${BITCOIN_VERSION}-x86_64-apple-darwin.tar.gz"
+            fi
+            ;;
+        *)
+            # Linux
+            case "$ARCH" in
+                x86_64)
+                    BITCOIN_FILE="bitcoin-${BITCOIN_VERSION}-x86_64-linux-gnu.tar.gz"
+                    ;;
+                aarch64)
+                    BITCOIN_FILE="bitcoin-${BITCOIN_VERSION}-aarch64-linux-gnu.tar.gz"
+                    ;;
+                arm)
+                    BITCOIN_FILE="bitcoin-${BITCOIN_VERSION}-arm-linux-gnueabihf.tar.gz"
+                    ;;
+                *)
+                    log_error "不支持的架构: $ARCH"
+                    exit 1
+                    ;;
+            esac
+            ;;
+    esac
     
     # 下载Bitcoin Core
-    log_info "下载Bitcoin Core v${BITCOIN_VERSION}..."
+    log_info "下载Bitcoin Core v${BITCOIN_VERSION} ($BITCOIN_FILE)..."
     cd /tmp
-    wget -q "https://bitcoin.org/bin/bitcoin-core-${BITCOIN_VERSION}/bitcoin-${BITCOIN_VERSION}-x86_64-linux-gnu.tar.gz"
-    wget -q "https://bitcoin.org/bin/bitcoin-core-${BITCOIN_VERSION}/SHA256SUMS"
+    
+    # 使用curl或wget下载
+    if command -v curl >/dev/null 2>&1; then
+        curl -fSL "https://bitcoin.org/bin/bitcoin-core-${BITCOIN_VERSION}/${BITCOIN_FILE}" -o "${BITCOIN_FILE}"
+        curl -fSL "https://bitcoin.org/bin/bitcoin-core-${BITCOIN_VERSION}/SHA256SUMS" -o "SHA256SUMS"
+    else
+        wget -q "https://bitcoin.org/bin/bitcoin-core-${BITCOIN_VERSION}/${BITCOIN_FILE}"
+        wget -q "https://bitcoin.org/bin/bitcoin-core-${BITCOIN_VERSION}/SHA256SUMS"
+    fi
     
     # 验证下载文件
     log_info "验证下载文件..."
-    if ! sha256sum -c --ignore-missing SHA256SUMS 2>/dev/null | grep -q "bitcoin-${BITCOIN_VERSION}-x86_64-linux-gnu.tar.gz: OK"; then
+    if ! sha256sum -c --ignore-missing SHA256SUMS 2>/dev/null | grep -q "${BITCOIN_FILE}: OK"; then
         log_error "文件校验失败"
         exit 1
     fi
     
     # 解压并安装
     log_info "安装Bitcoin Core..."
-    tar -xzf "bitcoin-${BITCOIN_VERSION}-x86_64-linux-gnu.tar.gz"
-    sudo cp "bitcoin-${BITCOIN_VERSION}/bin/"* /usr/local/bin/
+    tar -xzf "${BITCOIN_FILE}"
+    
+    # 根据系统选择安装路径
+    case "$OS_FAMILY" in
+        darwin)
+            # macOS: 复制到/usr/local/bin (需要sudo)
+            if [ -w /usr/local/bin ]; then
+                cp "bitcoin-${BITCOIN_VERSION}/bin/"* /usr/local/bin/
+            else
+                sudo cp "bitcoin-${BITCOIN_VERSION}/bin/"* /usr/local/bin/
+            fi
+            ;;
+        *)
+            # Linux: 复制到/usr/local/bin
+            sudo cp "bitcoin-${BITCOIN_VERSION}/bin/"* /usr/local/bin/
+            ;;
+    esac
     
     # 创建数据目录
     mkdir -p "$BITCOIN_DATA_DIR"
@@ -290,7 +537,13 @@ install_bitcoin() {
     fi
     
     # 生成RPC密码
-    local rpc_password=$(openssl rand -hex 32)
+    local rpc_password=""
+    if command -v openssl >/dev/null 2>&1; then
+        rpc_password=$(openssl rand -hex 32)
+    else
+        # 备用方法
+        rpc_password=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 32)
+    fi
     
     # 创建配置文件
     log_info "创建配置文件..."
@@ -307,35 +560,14 @@ $( [ "$BITCOIN_NETWORK" = "testnet" ] && echo "testnet=1" || echo "" )
 $( [ "$PRUNE_MODE" = "true" ] && echo "prune=$((PRUNE_SIZE_GB * 1000))" || echo "" )
 disablewallet=1
 dbcache=1000
-maxconnections=100
+maxconnections=50
 EOF
     
-    # 创建systemd服务
-    log_info "创建systemd服务..."
-    sudo tee /etc/systemd/system/bitcoind.service > /dev/null << EOF
-[Unit]
-Description=Bitcoin daemon
-After=network.target
-
-[Service]
-ExecStart=/usr/local/bin/bitcoind -conf=$BITCOIN_CONF_FILE -datadir=$BITCOIN_DATA_DIR
-ExecStop=/usr/local/bin/bitcoin-cli -conf=$BITCOIN_CONF_FILE -datadir=$BITCOIN_DATA_DIR stop
-ExecReload=/bin/kill -HUP \$MAINPID
-User=$BITCOIN_USER
-Type=forking
-PIDFile=$BITCOIN_PID_FILE
-Restart=on-failure
-RestartSec=60
-
-[Install]
-WantedBy=multi-user.target
-EOF
-    
-    sudo systemctl daemon-reload
-    sudo systemctl enable bitcoind
+    # 创建服务文件
+    create_service_file
     
     # 清理临时文件
-    rm -f /tmp/bitcoin-${BITCOIN_VERSION}-x86_64-linux-gnu.tar.gz
+    rm -f "/tmp/${BITCOIN_FILE}"
     rm -f /tmp/SHA256SUMS
     rm -rf "/tmp/bitcoin-${BITCOIN_VERSION}"
     
@@ -350,8 +582,9 @@ EOF
     fi
     log_info "钱包功能: 禁用"
     log_info "RPC端口: $DEFAULT_RPC_PORT"
-    log_info "使用 'sudo systemctl start bitcoind' 启动服务"
-    sudo systemctl start bitcoind
+    
+    # 启动服务
+    start_service
     
     # 等待一会儿再显示RPC信息
     sleep 3
@@ -377,12 +610,8 @@ check_status() {
         echo "bitcoind is not running"
     fi
     
-    # 检查systemd服务状态
-    if systemctl is-active --quiet bitcoind; then
-        echo "systemd服务状态: active"
-    else
-        echo "systemd服务状态: inactive"
-    fi
+    # 检查服务状态
+    check_service_status
 }
 
 # 健康检查
@@ -421,12 +650,12 @@ health_check() {
 # 重启节点
 restart_bitcoin() {
     log_info "重启Bitcoin节点..."
-    sudo systemctl restart bitcoind
+    restart_service
     
     # 等待启动
     sleep 5
     
-    if systemctl is-active --quiet bitcoind; then
+    if pgrep bitcoind >/dev/null 2>&1; then
         log_info "Bitcoin节点重启成功"
     else
         log_error "Bitcoin节点重启失败"
@@ -444,8 +673,8 @@ stop_bitcoin() {
         sleep 10
     fi
     
-    # 使用systemd停止
-    sudo systemctl stop bitcoind
+    # 使用服务管理器停止
+    stop_service
     
     # 检查是否已停止
     pid=$(pgrep bitcoind 2>/dev/null || echo "")
@@ -453,7 +682,7 @@ stop_bitcoin() {
         log_info "Bitcoin节点已停止"
     else
         log_warn "强制终止Bitcoin进程..."
-        sudo kill -9 "$pid"
+        kill -9 "$pid" 2>/dev/null || sudo kill -9 "$pid" 2>/dev/null || true
         log_info "Bitcoin节点已强制停止"
     fi
 }
@@ -472,17 +701,32 @@ uninstall_bitcoin() {
     
     # 停止服务
     log_info "停止Bitcoin服务..."
-    sudo systemctl stop bitcoind 2>/dev/null || true
-    sudo systemctl disable bitcoind 2>/dev/null || true
+    stop_service
     
-    # 删除systemd服务文件
-    log_info "删除systemd服务..."
-    sudo rm -f /etc/systemd/system/bitcoind.service
-    sudo systemctl daemon-reload
+    # 删除服务文件
+    log_info "删除服务文件..."
+    case "$SERVICE_MANAGER" in
+        systemd)
+            sudo systemctl disable bitcoind 2>/dev/null || true
+            sudo rm -f /etc/systemd/system/bitcoind.service
+            sudo systemctl daemon-reload
+            ;;
+        launchd)
+            launchctl unload "$HOME/Library/LaunchAgents/com.bitcoin.bitcoind.plist" 2>/dev/null || true
+            rm -f "$HOME/Library/LaunchAgents/com.bitcoin.bitcoind.plist"
+            ;;
+    esac
     
     # 删除二进制文件
     log_info "删除Bitcoin二进制文件..."
-    sudo rm -f /usr/local/bin/bitcoin*
+    case "$OS_FAMILY" in
+        darwin)
+            rm -f /usr/local/bin/bitcoin* 2>/dev/null || sudo rm -f /usr/local/bin/bitcoin* 2>/dev/null || true
+            ;;
+        *)
+            sudo rm -f /usr/local/bin/bitcoin*
+            ;;
+    esac
     
     # 询问是否删除数据目录
     if [ "$FORCE_MODE" = "false" ]; then
@@ -626,6 +870,148 @@ sync_progress() {
     if [ -f "$tmp_file" ]; then
         tail -n 10 "$tmp_file" > "${tmp_file}.tmp" && mv "${tmp_file}.tmp" "$tmp_file"
     fi
+}
+
+# 创建服务文件
+create_service_file() {
+    case "$SERVICE_MANAGER" in
+        systemd)
+            log_info "创建systemd服务..."
+            sudo tee /etc/systemd/system/bitcoind.service > /dev/null << EOF
+[Unit]
+Description=Bitcoin daemon
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/bitcoind -conf=$BITCOIN_CONF_FILE -datadir=$BITCOIN_DATA_DIR
+ExecStop=/usr/local/bin/bitcoin-cli -conf=$BITCOIN_CONF_FILE -datadir=$BITCOIN_DATA_DIR stop
+ExecReload=/bin/kill -HUP \$MAINPID
+User=$BITCOIN_USER
+Type=forking
+PIDFile=$BITCOIN_PID_FILE
+Restart=on-failure
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target
+EOF
+            sudo systemctl daemon-reload
+            sudo systemctl enable bitcoind
+            ;;
+        launchd)
+            # macOS launchd服务
+            log_info "创建launchd服务..."
+            local plist_file="$HOME/Library/LaunchAgents/com.bitcoin.bitcoind.plist"
+            mkdir -p "$HOME/Library/LaunchAgents"
+            cat > "$plist_file" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.bitcoin.bitcoind</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/bitcoind</string>
+        <string>-conf=$BITCOIN_CONF_FILE</string>
+        <string>-datadir=$BITCOIN_DATA_DIR</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>$BITCOIN_DATA_DIR/bitcoind.out</string>
+    <key>StandardErrorPath</key>
+    <string>$BITCOIN_DATA_DIR/bitcoind.err</string>
+</dict>
+</plist>
+EOF
+            ;;
+        *)
+            log_warn "不支持的服务管理器，请手动启动bitcoind"
+            ;;
+    esac
+}
+
+# 启动服务
+start_service() {
+    case "$SERVICE_MANAGER" in
+        systemd)
+            log_info "启动systemd服务..."
+            sudo systemctl start bitcoind
+            ;;
+        launchd)
+            log_info "启动launchd服务..."
+            launchctl load "$HOME/Library/LaunchAgents/com.bitcoin.bitcoind.plist"
+            ;;
+        *)
+            log_info "手动启动bitcoind..."
+            nohup bitcoind -conf="$BITCOIN_CONF_FILE" -datadir="$BITCOIN_DATA_DIR" > "$BITCOIN_DATA_DIR/bitcoind.out" 2>&1 &
+            ;;
+    esac
+}
+
+# 停止服务
+stop_service() {
+    case "$SERVICE_MANAGER" in
+        systemd)
+            sudo systemctl stop bitcoind
+            ;;
+        launchd)
+            launchctl unload "$HOME/Library/LaunchAgents/com.bitcoin.bitcoind.plist" 2>/dev/null || true
+            ;;
+        *)
+            # 手动停止
+            if command -v bitcoin-cli >/dev/null 2>&1; then
+                bitcoin-cli -conf="$BITCOIN_CONF_FILE" -datadir="$BITCOIN_DATA_DIR" stop 2>/dev/null || true
+            fi
+            sleep 5
+            pkill bitcoind 2>/dev/null || true
+            ;;
+    esac
+}
+
+# 重启服务
+restart_service() {
+    case "$SERVICE_MANAGER" in
+        systemd)
+            sudo systemctl restart bitcoind
+            ;;
+        launchd)
+            launchctl unload "$HOME/Library/LaunchAgents/com.bitcoin.bitcoind.plist" 2>/dev/null || true
+            sleep 2
+            launchctl load "$HOME/Library/LaunchAgents/com.bitcoin.bitcoind.plist"
+            ;;
+        *)
+            stop_service
+            sleep 5
+            start_service
+            ;;
+    esac
+}
+
+# 检查服务状态
+check_service_status() {
+    case "$SERVICE_MANAGER" in
+        systemd)
+            if systemctl is-active --quiet bitcoind; then
+                echo "systemd服务状态: active"
+            else
+                echo "systemd服务状态: inactive"
+            fi
+            ;;
+        launchd)
+            if launchctl list | grep -q com.bitcoin.bitcoind; then
+                echo "launchd服务状态: loaded"
+            else
+                echo "launchd服务状态: not loaded"
+            fi
+            ;;
+        *)
+            echo "服务管理器: 手动模式"
+            ;;
+    esac
 }
 
 # 显示帮助信息
