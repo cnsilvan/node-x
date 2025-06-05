@@ -845,7 +845,8 @@ uninstall_bitcoin() {
             log_info "保留数据目录: $BITCOIN_DATA_DIR"
         fi
     else
-        log_info "Force模式: 保留数据目录 $BITCOIN_DATA_DIR"
+        log_info "Force模式: 删除数据目录 $BITCOIN_DATA_DIR"
+        rm -rf "$BITCOIN_DATA_DIR"
     fi
     
     log_info "Bitcoin节点卸载完成"
