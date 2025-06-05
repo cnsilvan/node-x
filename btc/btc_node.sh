@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Bitcoin节点管理脚本
-# 使用方法: ./bitcoin_node.sh [install|status|health|restart|stop|uninstall|logs] [mainnet|testnet]
+# 使用方法: ./bitcoin_node.sh [--force] [install|status|health|restart|stop|uninstall|logs] [mainnet|testnet]
 # 环境变量:
 # BITCOIN_NETWORK: mainnet 或 testnet (默认: mainnet)
 # BITCOIN_DATA_DIR: 数据目录 (默认: ~/.bitcoin)
@@ -15,6 +15,7 @@ BITCOIN_USER=${BITCOIN_USER:-$(whoami)}
 BITCOIN_DATA_DIR=${BITCOIN_DATA_DIR:-"$HOME/.bitcoin"}
 BITCOIN_VERSION="28.1"
 BITCOIN_SERVICE_NAME="bitcoind"
+FORCE_MODE=false
 
 # 根据网络类型设置配置
 if [ "$BITCOIN_NETWORK" = "testnet" ]; then
@@ -95,9 +96,13 @@ install_bitcoin() {
     # 检查是否已安装
     if command -v bitcoind >/dev/null 2>&1; then
         log_warn "Bitcoin Core已安装，版本: $(bitcoind --version | head -n1)"
-        read -p "是否继续重新安装? (y/N): " confirm
-        if [[ ! $confirm =~ ^[Yy]$ ]]; then
-            exit 0
+        if [ "$FORCE_MODE" = "false" ]; then
+            read -p "是否继续重新安装? (y/N): " confirm
+            if [[ ! $confirm =~ ^[Yy]$ ]]; then
+                exit 0
+            fi
+        else
+            log_info "Force模式: 继续重新安装"
         fi
     fi
     
@@ -282,9 +287,13 @@ stop_bitcoin() {
 # 卸载节点
 uninstall_bitcoin() {
     log_warn "准备卸载Bitcoin节点..."
-    read -p "这将删除所有Bitcoin相关文件，是否继续? (y/N): " confirm
-    if [[ ! $confirm =~ ^[Yy]$ ]]; then
-        exit 0
+    if [ "$FORCE_MODE" = "false" ]; then
+        read -p "这将删除所有Bitcoin相关文件，是否继续? (y/N): " confirm
+        if [[ ! $confirm =~ ^[Yy]$ ]]; then
+            exit 0
+        fi
+    else
+        log_info "Force模式: 强制卸载Bitcoin节点"
     fi
     
     # 停止服务
@@ -302,12 +311,16 @@ uninstall_bitcoin() {
     sudo rm -f /usr/local/bin/bitcoin*
     
     # 询问是否删除数据目录
-    read -p "是否删除数据目录 $BITCOIN_DATA_DIR? (y/N): " confirm_data
-    if [[ $confirm_data =~ ^[Yy]$ ]]; then
-        log_info "删除数据目录..."
-        rm -rf "$BITCOIN_DATA_DIR"
+    if [ "$FORCE_MODE" = "false" ]; then
+        read -p "是否删除数据目录 $BITCOIN_DATA_DIR? (y/N): " confirm_data
+        if [[ $confirm_data =~ ^[Yy]$ ]]; then
+            log_info "删除数据目录..."
+            rm -rf "$BITCOIN_DATA_DIR"
+        else
+            log_info "保留数据目录: $BITCOIN_DATA_DIR"
+        fi
     else
-        log_info "保留数据目录: $BITCOIN_DATA_DIR"
+        log_info "Force模式: 保留数据目录 $BITCOIN_DATA_DIR"
     fi
     
     log_info "Bitcoin节点卸载完成"
@@ -332,7 +345,10 @@ view_logs() {
 show_help() {
     echo "Bitcoin节点管理脚本"
     echo ""
-    echo "用法: $0 [命令] [网络类型]"
+    echo "用法: $0 [--force] [命令] [网络类型]"
+    echo ""
+    echo "选项:"
+    echo "  --force   - 强制模式，跳过所有确认提示"
     echo ""
     echo "命令:"
     echo "  install   - 安装Bitcoin节点"
@@ -350,18 +366,41 @@ show_help() {
     echo ""
     echo "示例:"
     echo "  $0 install"
-    echo "  BITCOIN_NETWORK=testnet $0 install"
+    echo "  $0 --force install"
+    echo "  BITCOIN_NETWORK=testnet $0 --force install"
     echo "  $0 status"
     echo "  $0 health"
+    echo ""
+    echo "nohup使用示例:"
+    echo "  nohup $0 --force install > install.log 2>&1 &"
 }
 
 # 主程序
 main() {
+    # 处理命令行参数
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --force)
+                FORCE_MODE=true
+                shift
+                ;;
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+    
     # 检查参数
     if [ $# -lt 1 ]; then
         show_help
         exit 1
     fi
+    
+    COMMAND="$1"
     
     # 处理网络类型参数
     if [ $# -eq 2 ]; then
@@ -380,7 +419,7 @@ main() {
         BITCOIN_PID_FILE="$BITCOIN_DATA_DIR/testnet3/bitcoind.pid"
     fi
     
-    case "$1" in
+    case "$COMMAND" in
         install)
             install_bitcoin
             ;;
@@ -403,7 +442,7 @@ main() {
             view_logs
             ;;
         *)
-            log_error "未知命令: $1"
+            log_error "未知命令: $COMMAND"
             show_help
             exit 1
             ;;
