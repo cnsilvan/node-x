@@ -1,4 +1,4 @@
-1#!/bin/bash
+#!/bin/bash
 
 # Bitcoin节点管理脚本
 # 使用方法: ./bitcoin_node.sh [--force] [--prune] [install|status|health|restart|stop|uninstall|logs|sync|rpc-url] [mainnet|testnet]
