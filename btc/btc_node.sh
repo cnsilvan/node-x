@@ -109,7 +109,7 @@ install_bitcoin() {
     # 更新系统包
     log_info "更新系统包..."
     sudo apt update
-    sudo apt install -y wget curl bc
+    sudo apt install -y wget curl bc jq
     
     # 下载Bitcoin Core
     log_info "下载Bitcoin Core v${BITCOIN_VERSION}..."
@@ -184,6 +184,7 @@ EOF
     log_info "配置文件: $BITCOIN_CONF_FILE"
     log_info "数据目录: $BITCOIN_DATA_DIR"
     log_info "使用 'sudo systemctl start bitcoind' 启动服务"
+    sudo systemctl start bitcoind
 }
 
 # 检查节点状态
