@@ -226,18 +226,26 @@ get_rpc_info() {
     # 从配置文件读取RPC信息
     local rpc_user=$(grep "^rpcuser=" "$BITCOIN_CONF_FILE" 2>/dev/null | cut -d'=' -f2 || echo "")
     local rpc_password=$(grep "^rpcpassword=" "$BITCOIN_CONF_FILE" 2>/dev/null | cut -d'=' -f2 || echo "")
-    local rpc_port=$(grep "^rpcport=" "$BITCOIN_CONF_FILE" 2>/dev/null | cut -d'=' -f2 || echo "$DEFAULT_RPC_PORT")
     
-    # 根据网络类型读取绑定地址
+    # 根据网络类型读取端口和绑定地址
+    local rpc_port=""
     local rpc_bind=""
+    
     if [ "$BITCOIN_NETWORK" = "testnet" ]; then
-        # 测试网从[test]节读取
+        # 测试网从[test]节读取所有RPC配置
+        rpc_port=$(awk '/^\[test\]/{flag=1;next}/^\[/{flag=0}flag && /^rpcport=/{print $0}' "$BITCOIN_CONF_FILE" | cut -d'=' -f2 | head -n1)
         rpc_bind=$(awk '/^\[test\]/{flag=1;next}/^\[/{flag=0}flag && /^rpcbind=/{print $0}' "$BITCOIN_CONF_FILE" | cut -d'=' -f2 | head -n1)
+        
+        # 如果没有找到，使用默认值
+        if [ -z "$rpc_port" ]; then
+            rpc_port="$DEFAULT_RPC_PORT"
+        fi
         if [ -z "$rpc_bind" ]; then
             rpc_bind="0.0.0.0"
         fi
     else
         # 主网从全局配置读取
+        rpc_port=$(grep "^rpcport=" "$BITCOIN_CONF_FILE" 2>/dev/null | cut -d'=' -f2 || echo "$DEFAULT_RPC_PORT")
         rpc_bind=$(grep "^rpcbind=" "$BITCOIN_CONF_FILE" 2>/dev/null | cut -d'=' -f2 | head -n1 || echo "0.0.0.0")
     fi
 
@@ -617,7 +625,7 @@ install_bitcoin() {
     log_info "创建配置文件..."
     
     if [ "$BITCOIN_NETWORK" = "testnet" ]; then
-        # 测试网配置
+        # 测试网配置 - RPC相关配置都要放在[test]节中
         cat > "$BITCOIN_CONF_FILE" << EOF
 # Bitcoin配置文件 - 网络: $BITCOIN_NETWORK
 server=1
@@ -625,7 +633,6 @@ daemon=1
 printtoconsole=0
 rpcuser=bitcoinrpc
 rpcpassword=$rpc_password
-rpcport=$DEFAULT_RPC_PORT
 $( [ "$PRUNE_MODE" = "true" ] && echo "prune=$((PRUNE_SIZE_GB * 1000))" || echo "" )
 disablewallet=1
 dbcache=1000
@@ -634,6 +641,7 @@ testnet=1
 
 [test]
 rpcbind=0.0.0.0
+rpcport=$DEFAULT_RPC_PORT
 rpcallowip=0.0.0.0/0
 EOF
     else
@@ -1244,12 +1252,24 @@ validate_config() {
             log_error "测试网配置缺少[test]节中的rpcbind设置"
             return 1
         fi
+        
+        if ! grep -A 10 "^\[test\]" "$BITCOIN_CONF_FILE" | grep -q "^rpcport="; then
+            log_error "测试网配置缺少[test]节中的rpcport设置"
+            return 1
+        fi
+        
         log_info "测试网配置验证通过"
     else
         if ! grep -q "^rpcbind=" "$BITCOIN_CONF_FILE"; then
             log_error "主网配置缺少rpcbind设置"
             return 1
         fi
+        
+        if ! grep -q "^rpcport=" "$BITCOIN_CONF_FILE"; then
+            log_error "主网配置缺少rpcport设置"
+            return 1
+        fi
+        
         log_info "主网配置验证通过"
     fi
     
