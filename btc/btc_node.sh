@@ -227,7 +227,7 @@ get_rpc_info() {
     local rpc_user=$(grep "^rpcuser=" "$BITCOIN_CONF_FILE" 2>/dev/null | cut -d'=' -f2 || echo "")
     local rpc_password=$(grep "^rpcpassword=" "$BITCOIN_CONF_FILE" 2>/dev/null | cut -d'=' -f2 || echo "")
     local rpc_port=$(grep "^rpcport=" "$BITCOIN_CONF_FILE" 2>/dev/null | cut -d'=' -f2 || echo "$DEFAULT_RPC_PORT")
-    local rpc_bind=$(grep "^rpcbind=" "$BITCOIN_CONF_FILE" 2>/dev/null | cut -d'=' -f2 | head -n1 || echo "127.0.0.1")
+    local rpc_bind=$(grep "^rpcbind=" "$BITCOIN_CONF_FILE" 2>/dev/null | cut -d'=' -f2 | head -n1 || echo "0.0.0.0")
 
     # 检查必要信息是否存在
     if [ -z "$rpc_user" ] || [ -z "$rpc_password" ]; then
@@ -334,7 +334,7 @@ show_rpc_url() {
     # 安全提醒
     echo -e "${RED}⚠️  安全提醒:${NC}"
     echo "• RPC密码包含敏感信息，请勿在不安全的环境中分享"
-    echo "• 默认情况下，RPC服务只绑定到本地地址 (127.0.0.1)"
+    echo "• 默认情况下，RPC服务绑定到 (0.0.0.0)"
     echo "• 如需远程访问，请配置防火墙和安全策略"
     echo "• 建议定期更换RPC密码"
     echo ""
@@ -554,7 +554,7 @@ daemon=1
 printtoconsole=0
 rpcuser=bitcoinrpc
 rpcpassword=$rpc_password
-rpcbind=127.0.0.1
+rpcbind=0.0.0.0
 rpcport=$DEFAULT_RPC_PORT
 $( [ "$BITCOIN_NETWORK" = "testnet" ] && echo "testnet=1" || echo "" )
 $( [ "$PRUNE_MODE" = "true" ] && echo "prune=$((PRUNE_SIZE_GB * 1000))" || echo "" )
