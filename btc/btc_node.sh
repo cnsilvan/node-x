@@ -1,11 +1,12 @@
-#!/bin/bash
+1#!/bin/bash
 
 # Bitcoin节点管理脚本
-# 使用方法: ./bitcoin_node.sh [--force] [install|status|health|restart|stop|uninstall|logs|sync|rpc-url] [mainnet|testnet]
+# 使用方法: ./bitcoin_node.sh [--force] [--prune] [install|status|health|restart|stop|uninstall|logs|sync|rpc-url] [mainnet|testnet]
 # 环境变量:
 # BITCOIN_NETWORK: mainnet 或 testnet (默认: mainnet)
 # BITCOIN_DATA_DIR: 数据目录 (默认: ~/.bitcoin)
 # BITCOIN_USER: 运行用户 (默认: 当前用户)
+# BITCOIN_PRUNE: 修剪模式 (默认: false)
 
 set -e
 
@@ -16,6 +17,10 @@ BITCOIN_DATA_DIR=${BITCOIN_DATA_DIR:-"$HOME/.bitcoin"}
 BITCOIN_VERSION="28.1"
 BITCOIN_SERVICE_NAME="bitcoind"
 FORCE_MODE=false
+PRUNE_MODE=false
+
+# 修剪模式配置 (GB)
+PRUNE_SIZE_GB=${PRUNE_SIZE_GB:-50}  # 默认保留50GB区块数据
 
 # 根据网络类型设置配置
 if [ "$BITCOIN_NETWORK" = "testnet" ]; then
@@ -104,6 +109,22 @@ show_rpc_url() {
     echo -e "${YELLOW}RPC端口:${NC} $rpc_port"
     echo -e "${YELLOW}RPC用户:${NC} $rpc_user"
     echo -e "${YELLOW}RPC密码:${NC} $rpc_password"
+    
+    # 显示配置模式信息
+    if grep -q "^prune=" "$BITCOIN_CONF_FILE" 2>/dev/null; then
+        local prune_size=$(grep "^prune=" "$BITCOIN_CONF_FILE" | cut -d'=' -f2)
+        local prune_gb=$((prune_size / 1000))
+        echo -e "${YELLOW}修剪模式:${NC} 启用 (保留${prune_gb}GB区块数据)"
+    else
+        echo -e "${YELLOW}修剪模式:${NC} 禁用 (保留完整区块链)"
+    fi
+    
+    if grep -q "^disablewallet=1" "$BITCOIN_CONF_FILE" 2>/dev/null; then
+        echo -e "${YELLOW}钱包功能:${NC} 禁用"
+    else
+        echo -e "${YELLOW}钱包功能:${NC} 启用"
+    fi
+    
     echo ""
     echo -e "${GREEN}完整RPC URL:${NC}"
     echo -e "${YELLOW}$rpc_url${NC}"
@@ -183,16 +204,24 @@ check_system_resources() {
     fi
     log_info "内存检查通过: ${total_mem}GB"
     
-    # 检查磁盘空间 (主网至少需要800GB，测试网至少需要80GB)
+    # 检查磁盘空间 - 根据修剪模式调整要求
     available_space=$(df -BG "$HOME" | awk 'NR==2 {print $4}' | sed 's/G//')
-    if [ "$BITCOIN_NETWORK" = "testnet" ]; then
-        min_space=80
+    
+    if [ "$PRUNE_MODE" = "true" ]; then
+        # 修剪模式: 保留数据大小 + 50GB缓冲
+        min_space=$((PRUNE_SIZE_GB + 50))
+        log_info "修剪模式: 保留${PRUNE_SIZE_GB}GB区块数据"
     else
-        min_space=800
+        # 完整模式
+        if [ "$BITCOIN_NETWORK" = "testnet" ]; then
+            min_space=80
+        else
+            min_space=800
+        fi
     fi
     
     if [ "$available_space" -lt "$min_space" ]; then
-        log_error "磁盘空间不足: ${available_space}GB (${BITCOIN_NETWORK}网络推荐至少${min_space}GB)"
+        log_error "磁盘空间不足: ${available_space}GB (${BITCOIN_NETWORK}网络${PRUNE_MODE:+修剪模式}推荐至少${min_space}GB)"
         return 1
     fi
     log_info "磁盘空间检查通过: ${available_space}GB"
@@ -275,8 +304,10 @@ rpcpassword=$rpc_password
 rpcbind=127.0.0.1
 rpcport=$DEFAULT_RPC_PORT
 $( [ "$BITCOIN_NETWORK" = "testnet" ] && echo "testnet=1" || echo "" )
+$( [ "$PRUNE_MODE" = "true" ] && echo "prune=$((PRUNE_SIZE_GB * 1000))" || echo "" )
+disablewallet=1
 dbcache=1000
-maxconnections=50
+maxconnections=100
 EOF
     
     # 创建systemd服务
@@ -311,6 +342,13 @@ EOF
     log_info "Bitcoin节点安装完成！"
     log_info "配置文件: $BITCOIN_CONF_FILE"
     log_info "数据目录: $BITCOIN_DATA_DIR"
+    log_info "网络类型: $BITCOIN_NETWORK"
+    if [ "$PRUNE_MODE" = "true" ]; then
+        log_info "修剪模式: 启用 (保留${PRUNE_SIZE_GB}GB区块数据)"
+    else
+        log_info "修剪模式: 禁用 (保留完整区块链)"
+    fi
+    log_info "钱包功能: 禁用"
     log_info "RPC端口: $DEFAULT_RPC_PORT"
     log_info "使用 'sudo systemctl start bitcoind' 启动服务"
     sudo systemctl start bitcoind
@@ -494,12 +532,27 @@ sync_progress() {
     local blocks=$(echo "$info" | jq -r '.blocks // 0')
     local headers=$(echo "$info" | jq -r '.headers // 0')
     local initial_download=$(echo "$info" | jq -r '.initialblockdownload // true')
+    local size_on_disk=$(echo "$info" | jq -r '.size_on_disk // 0')
+    local pruned=$(echo "$info" | jq -r '.pruned // false')
 
     # 计算百分比
     local percent=$(echo "$progress * 100" | bc -l 2>/dev/null || echo "0")
     percent=$(printf "%.6f" "$percent" 2>/dev/null || echo "0.000000")
     
     echo -e "${GREEN}同步进度：${percent}%（当前高度：$blocks / 区块头：$headers）${NC}"
+    
+    # 显示磁盘使用情况
+    if [ "$size_on_disk" != "0" ]; then
+        local size_gb=$(echo "scale=2; $size_on_disk / (1024*1024*1024)" | bc -l 2>/dev/null || echo "计算失败")
+        echo -e "${GREEN}磁盘使用：${size_gb}GB${NC}"
+    fi
+    
+    # 显示修剪状态
+    if [ "$pruned" = "true" ]; then
+        echo -e "${YELLOW}修剪模式：已启用${NC}"
+    else
+        echo -e "${GREEN}修剪模式：未启用（保留完整区块链）${NC}"
+    fi
     
     if [ "$initial_download" = "false" ]; then
         echo -e "${GREEN}节点已同步完成。${NC}"
@@ -509,7 +562,11 @@ sync_progress() {
     # 初期阶段提示
     if [ "$blocks" -lt 100000 ]; then
         echo -e "${YELLOW}同步刚开始，当前区块高度还低（<10万），这是最慢阶段，请耐心等待。${NC}"
-        echo -e "${YELLOW}预计同步时间可能超过 3～7 天，视网络带宽和磁盘性能而定。${NC}"
+        if [ "$pruned" = "true" ]; then
+            echo -e "${YELLOW}修剪模式下预计同步时间：1～3天（视网络带宽和磁盘性能而定）${NC}"
+        else
+            echo -e "${YELLOW}完整模式下预计同步时间：3～7天（视网络带宽和磁盘性能而定）${NC}"
+        fi
         return 0
     fi
 
@@ -546,10 +603,14 @@ sync_progress() {
                         
                         echo -e "${YELLOW}基于最近进展预估剩余时间：约 ${hours} 小时（${days} 天）${NC}"
                         
-                        # 计算预计完成时间
+                        # 计算预计完成时间，显示本地时区
                         local eta_timestamp=$((now_ts + $(echo "$remaining_seconds" | cut -d'.' -f1)))
-                        local eta=$(date -d "@$eta_timestamp" "+%Y-%m-%d %H:%M:%S" 2>/dev/null || echo "计算失败")
-                        echo -e "${YELLOW}预计完成时间：$eta${NC}"
+                        local eta_local=$(date -d "@$eta_timestamp" "+%Y-%m-%d %H:%M:%S %Z" 2>/dev/null || echo "计算失败")
+                        local timezone=$(date "+%Z %z" 2>/dev/null || echo "")
+                        echo -e "${YELLOW}预计完成时间：$eta_local${NC}"
+                        if [ -n "$timezone" ]; then
+                            echo -e "${YELLOW}当前时区：$timezone${NC}"
+                        fi
                     fi
                 else
                     echo -e "${YELLOW}同步速度较慢，请检查网络连接和磁盘性能${NC}"
@@ -571,10 +632,11 @@ sync_progress() {
 show_help() {
     echo "Bitcoin节点管理脚本"
     echo ""
-    echo "用法: $0 [--force] [命令] [网络类型]"
+    echo "用法: $0 [--force] [--prune] [命令] [网络类型]"
     echo ""
     echo "选项:"
     echo "  --force   - 强制模式，跳过所有确认提示"
+    echo "  --prune   - 启用修剪模式，限制数据目录大小"
     echo ""
     echo "命令:"
     echo "  install   - 安装Bitcoin节点"
@@ -591,11 +653,15 @@ show_help() {
     echo "  BITCOIN_NETWORK   - 网络类型 (mainnet|testnet, 默认: mainnet)"
     echo "  BITCOIN_DATA_DIR  - 数据目录 (默认: ~/.bitcoin)"
     echo "  BITCOIN_USER      - 运行用户 (默认: 当前用户)"
+    echo "  BITCOIN_PRUNE     - 修剪模式 (默认: false)"
     echo ""
     echo "示例:"
     echo "  $0 install"
     echo "  $0 --force install"
+    echo "  $0 --prune install"
+    echo "  $0 --force --prune install"
     echo "  BITCOIN_NETWORK=testnet $0 --force install"
+    echo "  BITCOIN_NETWORK=testnet PRUNE_SIZE_GB=30 $0 --prune install"
     echo "  $0 status"
     echo "  $0 health"
     echo "  $0 sync"
@@ -615,6 +681,10 @@ main() {
         case $1 in
             --force)
                 FORCE_MODE=true
+                shift
+                ;;
+            --prune)
+                PRUNE_MODE=true
                 shift
                 ;;
             --url-only)
