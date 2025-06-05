@@ -29,6 +29,26 @@ log_warn() {
 log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
+
+
+# 默认配置
+BITCOIN_NETWORK=${BITCOIN_NETWORK:-"mainnet"}
+BITCOIN_USER=${BITCOIN_USER:-$(whoami)}
+BITCOIN_DATA_DIR=${BITCOIN_DATA_DIR:-"$HOME/.bitcoin"}
+BITCOIN_VERSION="28.1"
+BITCOIN_SERVICE_NAME="bitcoind"
+FORCE_MODE=false
+PRUNE_MODE=false
+
+# 修剪模式配置 (GB)
+PRUNE_SIZE_GB=${PRUNE_SIZE_GB:-50}  # 默认保留50GB区块数据
+
+# 系统相关变量 (将在detect_os()中设置)
+OS_ID=""
+OS_FAMILY=""
+PACKAGE_MANAGER=""
+SERVICE_MANAGER=""
+ARCH=""
 # 检测操作系统
 detect_os() {
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
@@ -176,26 +196,6 @@ get_service_manager() {
     fi
     log_info "服务管理器: $SERVICE_MANAGER"
 }
-
-# 默认配置
-BITCOIN_NETWORK=${BITCOIN_NETWORK:-"mainnet"}
-BITCOIN_USER=${BITCOIN_USER:-$(whoami)}
-BITCOIN_DATA_DIR=${BITCOIN_DATA_DIR:-"$HOME/.bitcoin"}
-BITCOIN_VERSION="28.1"
-BITCOIN_SERVICE_NAME="bitcoind"
-FORCE_MODE=false
-PRUNE_MODE=false
-
-# 修剪模式配置 (GB)
-PRUNE_SIZE_GB=${PRUNE_SIZE_GB:-50}  # 默认保留50GB区块数据
-
-# 系统相关变量 (将在detect_os()中设置)
-OS_ID=""
-OS_FAMILY=""
-PACKAGE_MANAGER=""
-SERVICE_MANAGER=""
-ARCH=""
-
 # 初始化系统检测
 detect_os
 detect_arch
@@ -227,7 +227,19 @@ get_rpc_info() {
     local rpc_user=$(grep "^rpcuser=" "$BITCOIN_CONF_FILE" 2>/dev/null | cut -d'=' -f2 || echo "")
     local rpc_password=$(grep "^rpcpassword=" "$BITCOIN_CONF_FILE" 2>/dev/null | cut -d'=' -f2 || echo "")
     local rpc_port=$(grep "^rpcport=" "$BITCOIN_CONF_FILE" 2>/dev/null | cut -d'=' -f2 || echo "$DEFAULT_RPC_PORT")
-    local rpc_bind=$(grep "^rpcbind=" "$BITCOIN_CONF_FILE" 2>/dev/null | cut -d'=' -f2 | head -n1 || echo "0.0.0.0")
+    
+    # 根据网络类型读取绑定地址
+    local rpc_bind=""
+    if [ "$BITCOIN_NETWORK" = "testnet" ]; then
+        # 测试网从[test]节读取
+        rpc_bind=$(awk '/^\[test\]/{flag=1;next}/^\[/{flag=0}flag && /^rpcbind=/{print $0}' "$BITCOIN_CONF_FILE" | cut -d'=' -f2 | head -n1)
+        if [ -z "$rpc_bind" ]; then
+            rpc_bind="0.0.0.0"
+        fi
+    else
+        # 主网从全局配置读取
+        rpc_bind=$(grep "^rpcbind=" "$BITCOIN_CONF_FILE" 2>/dev/null | cut -d'=' -f2 | head -n1 || echo "0.0.0.0")
+    fi
 
     # 检查必要信息是否存在
     if [ -z "$rpc_user" ] || [ -z "$rpc_password" ]; then
@@ -297,6 +309,13 @@ show_rpc_url() {
         echo -e "${YELLOW}钱包功能:${NC} 禁用"
     else
         echo -e "${YELLOW}钱包功能:${NC} 启用"
+    fi
+    
+    # 显示网络配置
+    if [ "$BITCOIN_NETWORK" = "testnet" ]; then
+        echo -e "${YELLOW}网络配置:${NC} 测试网 (RPC配置在[test]节中)"
+    else
+        echo -e "${YELLOW}网络配置:${NC} 主网 (RPC配置在全局)"
     fi
     
     echo ""
@@ -596,7 +615,30 @@ install_bitcoin() {
     
     # 创建配置文件
     log_info "创建配置文件..."
-    cat > "$BITCOIN_CONF_FILE" << EOF
+    
+    if [ "$BITCOIN_NETWORK" = "testnet" ]; then
+        # 测试网配置
+        cat > "$BITCOIN_CONF_FILE" << EOF
+# Bitcoin配置文件 - 网络: $BITCOIN_NETWORK
+server=1
+daemon=1
+printtoconsole=0
+rpcuser=bitcoinrpc
+rpcpassword=$rpc_password
+rpcport=$DEFAULT_RPC_PORT
+$( [ "$PRUNE_MODE" = "true" ] && echo "prune=$((PRUNE_SIZE_GB * 1000))" || echo "" )
+disablewallet=1
+dbcache=1000
+maxconnections=50
+testnet=1
+
+[test]
+rpcbind=0.0.0.0
+rpcallowip=0.0.0.0/0
+EOF
+    else
+        # 主网配置
+        cat > "$BITCOIN_CONF_FILE" << EOF
 # Bitcoin配置文件 - 网络: $BITCOIN_NETWORK
 server=1
 daemon=1
@@ -606,15 +648,21 @@ rpcpassword=$rpc_password
 rpcbind=0.0.0.0
 rpcport=$DEFAULT_RPC_PORT
 rpcallowip=0.0.0.0/0
-$( [ "$BITCOIN_NETWORK" = "testnet" ] && echo "testnet=1" || echo "" )
 $( [ "$PRUNE_MODE" = "true" ] && echo "prune=$((PRUNE_SIZE_GB * 1000))" || echo "" )
 disablewallet=1
 dbcache=1000
 maxconnections=50
 EOF
+    fi
     
     # 创建服务文件
     create_service_file
+    
+    # 验证配置文件
+    if ! validate_config; then
+        log_error "配置文件验证失败，安装终止"
+        exit 1
+    fi
     
     # 清理临时文件
     rm -f "/tmp/${BITCOIN_FILE}"
@@ -1163,6 +1211,49 @@ get_local_ip() {
     esac
     
     echo "$local_ip"
+}
+
+# 验证配置文件
+validate_config() {
+    log_info "验证配置文件..."
+    
+    if [ ! -f "$BITCOIN_CONF_FILE" ]; then
+        log_error "配置文件不存在: $BITCOIN_CONF_FILE"
+        return 1
+    fi
+    
+    # 检查基本配置
+    if ! grep -q "^rpcuser=" "$BITCOIN_CONF_FILE"; then
+        log_error "配置文件缺少rpcuser配置"
+        return 1
+    fi
+    
+    if ! grep -q "^rpcpassword=" "$BITCOIN_CONF_FILE"; then
+        log_error "配置文件缺少rpcpassword配置"
+        return 1
+    fi
+    
+    # 检查网络特定配置
+    if [ "$BITCOIN_NETWORK" = "testnet" ]; then
+        if ! grep -q "^testnet=1" "$BITCOIN_CONF_FILE"; then
+            log_error "测试网配置缺少testnet=1"
+            return 1
+        fi
+        
+        if ! grep -A 10 "^\[test\]" "$BITCOIN_CONF_FILE" | grep -q "^rpcbind="; then
+            log_error "测试网配置缺少[test]节中的rpcbind设置"
+            return 1
+        fi
+        log_info "测试网配置验证通过"
+    else
+        if ! grep -q "^rpcbind=" "$BITCOIN_CONF_FILE"; then
+            log_error "主网配置缺少rpcbind设置"
+            return 1
+        fi
+        log_info "主网配置验证通过"
+    fi
+    
+    return 0
 }
 
 # 主程序
