@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Bitcoin节点管理脚本
-# 使用方法: ./bitcoin_node.sh [--force] [install|status|health|restart|stop|uninstall|logs] [mainnet|testnet]
+# 使用方法: ./bitcoin_node.sh [--force] [install|status|health|restart|stop|uninstall|logs|sync|rpc-url] [mainnet|testnet]
 # 环境变量:
 # BITCOIN_NETWORK: mainnet 或 testnet (默认: mainnet)
 # BITCOIN_DATA_DIR: 数据目录 (默认: ~/.bitcoin)
@@ -22,10 +22,12 @@ if [ "$BITCOIN_NETWORK" = "testnet" ]; then
     BITCOIN_CONF_FILE="$BITCOIN_DATA_DIR/bitcoin.conf"
     BITCOIN_LOG_FILE="$BITCOIN_DATA_DIR/testnet3/debug.log"
     BITCOIN_PID_FILE="$BITCOIN_DATA_DIR/testnet3/bitcoind.pid"
+    DEFAULT_RPC_PORT="18332"
 else
     BITCOIN_CONF_FILE="$BITCOIN_DATA_DIR/bitcoin.conf"
     BITCOIN_LOG_FILE="$BITCOIN_DATA_DIR/debug.log"
     BITCOIN_PID_FILE="$BITCOIN_DATA_DIR/bitcoind.pid"
+    DEFAULT_RPC_PORT="8332"
 fi
 
 # 颜色输出
@@ -44,6 +46,129 @@ log_warn() {
 
 log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# 获取RPC连接信息
+get_rpc_info() {
+    if [ ! -f "$BITCOIN_CONF_FILE" ]; then
+        log_error "配置文件不存在: $BITCOIN_CONF_FILE"
+        return 1
+    fi
+
+    # 从配置文件读取RPC信息
+    local rpc_user=$(grep "^rpcuser=" "$BITCOIN_CONF_FILE" 2>/dev/null | cut -d'=' -f2 || echo "")
+    local rpc_password=$(grep "^rpcpassword=" "$BITCOIN_CONF_FILE" 2>/dev/null | cut -d'=' -f2 || echo "")
+    local rpc_port=$(grep "^rpcport=" "$BITCOIN_CONF_FILE" 2>/dev/null | cut -d'=' -f2 || echo "$DEFAULT_RPC_PORT")
+    local rpc_bind=$(grep "^rpcbind=" "$BITCOIN_CONF_FILE" 2>/dev/null | cut -d'=' -f2 | head -n1 || echo "127.0.0.1")
+
+    # 检查必要信息是否存在
+    if [ -z "$rpc_user" ] || [ -z "$rpc_password" ]; then
+        log_error "RPC用户名或密码未在配置文件中找到"
+        return 1
+    fi
+
+    echo "$rpc_user:$rpc_password:$rpc_bind:$rpc_port"
+}
+
+# 显示RPC连接URL
+show_rpc_url() {
+    log_info "获取Bitcoin节点RPC连接信息..."
+
+    # 检查节点是否运行
+    if ! pgrep bitcoind >/dev/null 2>&1; then
+        log_error "Bitcoin节点未运行，请先启动节点"
+        return 1
+    fi
+
+    # 获取RPC信息
+    local rpc_info=$(get_rpc_info)
+    if [ $? -ne 0 ]; then
+        return 1
+    fi
+
+    local rpc_user=$(echo "$rpc_info" | cut -d':' -f1)
+    local rpc_password=$(echo "$rpc_info" | cut -d':' -f2)
+    local rpc_host=$(echo "$rpc_info" | cut -d':' -f3)
+    local rpc_port=$(echo "$rpc_info" | cut -d':' -f4)
+
+    # 构建完整的RPC URL
+    local rpc_url="http://${rpc_user}:${rpc_password}@${rpc_host}:${rpc_port}/"
+
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo -e "${GREEN}Bitcoin节点RPC连接信息${NC}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo -e "${YELLOW}网络类型:${NC} $BITCOIN_NETWORK"
+    echo -e "${YELLOW}RPC主机:${NC} $rpc_host"
+    echo -e "${YELLOW}RPC端口:${NC} $rpc_port"
+    echo -e "${YELLOW}RPC用户:${NC} $rpc_user"
+    echo -e "${YELLOW}RPC密码:${NC} $rpc_password"
+    echo ""
+    echo -e "${GREEN}完整RPC URL:${NC}"
+    echo -e "${YELLOW}$rpc_url${NC}"
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo -e "${GREEN}使用示例:${NC}"
+    echo ""
+    echo -e "${YELLOW}curl命令示例:${NC}"
+    echo "curl -u \"$rpc_user:$rpc_password\" -d '{\"jsonrpc\":\"1.0\",\"id\":\"test\",\"method\":\"getblockchaininfo\",\"params\":[]}' -H 'content-type: text/plain;' http://$rpc_host:$rpc_port/"
+    echo ""
+    echo -e "${YELLOW}Python示例:${NC}"
+    echo "import requests"
+    echo "rpc_url = '$rpc_url'"
+    echo "payload = {\"jsonrpc\":\"1.0\",\"id\":\"test\",\"method\":\"getblockchaininfo\",\"params\":[]}"
+    echo "response = requests.post(rpc_url, json=payload)"
+    echo "print(response.json())"
+    echo ""
+    echo -e "${YELLOW}Node.js示例:${NC}"
+    echo "const axios = require('axios');"
+    echo "const rpcUrl = '$rpc_url';"
+    echo "const payload = {jsonrpc:'1.0',id:'test',method:'getblockchaininfo',params:[]};"
+    echo "axios.post(rpcUrl, payload).then(res => console.log(res.data));"
+    echo ""
+    
+    # 测试RPC连接
+    echo -e "${GREEN}连接测试:${NC}"
+    if command -v bitcoin-cli >/dev/null 2>&1; then
+        local test_result=$(bitcoin-cli -conf="$BITCOIN_CONF_FILE" -datadir="$BITCOIN_DATA_DIR" getblockchaininfo 2>/dev/null)
+        if [ $? -eq 0 ]; then
+            local blocks=$(echo "$test_result" | jq -r '.blocks // "未知"' 2>/dev/null || echo "未知")
+            local network=$(echo "$test_result" | jq -r '.chain // "未知"' 2>/dev/null || echo "未知")
+            echo -e "${GREEN}✓ RPC连接正常${NC}"
+            echo -e "  当前区块高度: $blocks"
+            echo -e "  网络: $network"
+        else
+            echo -e "${RED}✗ RPC连接失败${NC}"
+        fi
+    else
+        echo -e "${YELLOW}! 无法测试连接 (bitcoin-cli未找到)${NC}"
+    fi
+    echo ""
+    
+    # 安全提醒
+    echo -e "${RED}⚠️  安全提醒:${NC}"
+    echo "• RPC密码包含敏感信息，请勿在不安全的环境中分享"
+    echo "• 默认情况下，RPC服务只绑定到本地地址 (127.0.0.1)"
+    echo "• 如需远程访问，请配置防火墙和安全策略"
+    echo "• 建议定期更换RPC密码"
+    echo ""
+}
+
+# 仅返回RPC URL (用于脚本调用)
+get_rpc_url_only() {
+    local rpc_info=$(get_rpc_info 2>/dev/null)
+    if [ $? -ne 0 ]; then
+        return 1
+    fi
+
+    local rpc_user=$(echo "$rpc_info" | cut -d':' -f1)
+    local rpc_password=$(echo "$rpc_info" | cut -d':' -f2)
+    local rpc_host=$(echo "$rpc_info" | cut -d':' -f3)
+    local rpc_port=$(echo "$rpc_info" | cut -d':' -f4)
+
+    echo "http://${rpc_user}:${rpc_password}@${rpc_host}:${rpc_port}/"
 }
 
 # 检查系统资源
@@ -135,6 +260,9 @@ install_bitcoin() {
         mkdir -p "$BITCOIN_DATA_DIR/testnet3"
     fi
     
+    # 生成RPC密码
+    local rpc_password=$(openssl rand -hex 32)
+    
     # 创建配置文件
     log_info "创建配置文件..."
     cat > "$BITCOIN_CONF_FILE" << EOF
@@ -143,9 +271,9 @@ server=1
 daemon=1
 printtoconsole=0
 rpcuser=bitcoinrpc
-rpcpassword=$(openssl rand -hex 32)
+rpcpassword=$rpc_password
 rpcbind=127.0.0.1
-rpcport=$( [ "$BITCOIN_NETWORK" = "testnet" ] && echo "18332" || echo "8332" )
+rpcport=$DEFAULT_RPC_PORT
 $( [ "$BITCOIN_NETWORK" = "testnet" ] && echo "testnet=1" || echo "" )
 dbcache=1000
 maxconnections=50
@@ -183,15 +311,22 @@ EOF
     log_info "Bitcoin节点安装完成！"
     log_info "配置文件: $BITCOIN_CONF_FILE"
     log_info "数据目录: $BITCOIN_DATA_DIR"
+    log_info "RPC端口: $DEFAULT_RPC_PORT"
     log_info "使用 'sudo systemctl start bitcoind' 启动服务"
     sudo systemctl start bitcoind
+    
+    # 等待一会儿再显示RPC信息
+    sleep 3
+    echo ""
+    log_info "RPC连接信息将在节点启动后可用，使用以下命令查看:"
+    echo "$0 rpc-url"
 }
 
 # 检查节点状态
 check_status() {
     log_info "检查Bitcoin节点状态..."
     
-    pid=$(pgrep bitcoind)
+    pid=$(pgrep bitcoind 2>/dev/null || echo "")
     if [ -n "$pid" ]; then
         echo "bitcoind is running: $pid"
         
@@ -215,7 +350,7 @@ check_status() {
 # 健康检查
 health_check() {
     # 检查进程是否运行
-    pid=$(pgrep bitcoind)
+    pid=$(pgrep bitcoind 2>/dev/null || echo "")
     if [ -z "$pid" ]; then
         echo "false"
         return 1
@@ -275,7 +410,7 @@ stop_bitcoin() {
     sudo systemctl stop bitcoind
     
     # 检查是否已停止
-    pid=$(pgrep bitcoind)
+    pid=$(pgrep bitcoind 2>/dev/null || echo "")
     if [ -z "$pid" ]; then
         log_info "Bitcoin节点已停止"
     else
@@ -341,9 +476,10 @@ view_logs() {
         sudo journalctl -u bitcoind -n 100 --no-pager
     fi
 }
+
 # 查看同步进度并预计同步完成时间
 sync_progress() {
-       if ! command -v bitcoin-cli >/dev/null 2>&1; then
+    if ! command -v bitcoin-cli >/dev/null 2>&1; then
         log_error "未找到 bitcoin-cli 命令，请确认是否已安装 Bitcoin Core"
         exit 1
     fi
@@ -354,53 +490,83 @@ sync_progress() {
     fi
 
     local info=$(bitcoin-cli -conf="$BITCOIN_CONF_FILE" -datadir="$BITCOIN_DATA_DIR" getblockchaininfo)
-    local progress=$(echo "$info" | grep -o '"verificationprogress":[0-9.e-]*' | cut -d':' -f2)
-    local blocks=$(echo "$info" | grep -o '"blocks":[0-9]*' | cut -d':' -f2)
-    local headers=$(echo "$info" | grep -o '"headers":[0-9]*' | cut -d':' -f2)
+    local progress=$(echo "$info" | jq -r '.verificationprogress // 0')
+    local blocks=$(echo "$info" | jq -r '.blocks // 0')
+    local headers=$(echo "$info" | jq -r '.headers // 0')
+    local initial_download=$(echo "$info" | jq -r '.initialblockdownload // true')
 
-    percent=$(echo "$progress * 100" | bc -l | xargs printf "%.6f")
-    echo -e "${GREEN}同步进度：$percent%（当前高度：$blocks / 区块头：$headers）${NC}"
-
-    if (( $(echo "$progress >= 0.9999" | bc -l) )); then
+    # 计算百分比
+    local percent=$(echo "$progress * 100" | bc -l 2>/dev/null || echo "0")
+    percent=$(printf "%.6f" "$percent" 2>/dev/null || echo "0.000000")
+    
+    echo -e "${GREEN}同步进度：${percent}%（当前高度：$blocks / 区块头：$headers）${NC}"
+    
+    if [ "$initial_download" = "false" ]; then
         echo -e "${GREEN}节点已同步完成。${NC}"
         return 0
     fi
 
     # 初期阶段提示
-    if (( blocks < 100000 )); then
+    if [ "$blocks" -lt 100000 ]; then
         echo -e "${YELLOW}同步刚开始，当前区块高度还低（<10万），这是最慢阶段，请耐心等待。${NC}"
         echo -e "${YELLOW}预计同步时间可能超过 3～7 天，视网络带宽和磁盘性能而定。${NC}"
         return 0
     fi
 
     # 记录上次进度文件
-    tmp_file="/tmp/.bitcoin_sync_progress"
-    now_ts=$(date +%s)
+    local tmp_file="/tmp/.bitcoin_sync_progress_${BITCOIN_NETWORK}"
+    local now_ts=$(date +%s)
 
     if [ -f "$tmp_file" ]; then
-        last_line=$(tail -n1 "$tmp_file")
-        last_ts=$(echo "$last_line" | cut -d',' -f1)
-        last_progress=$(echo "$last_line" | cut -d',' -f2)
-        last_blocks=$(echo "$last_line" | cut -d',' -f3)
+        local last_line=$(tail -n1 "$tmp_file" 2>/dev/null || echo "")
+        if [ -n "$last_line" ]; then
+            local last_ts=$(echo "$last_line" | cut -d',' -f1)
+            local last_progress=$(echo "$last_line" | cut -d',' -f2)
+            local last_blocks=$(echo "$last_line" | cut -d',' -f3)
 
-        delta_time=$((now_ts - last_ts))
-        delta_progress=$(echo "$progress - $last_progress" | bc -l)
-
-        if (( delta_time > 0 )) && (( $(echo "$delta_progress > 0" | bc -l) )); then
-            speed=$(echo "$delta_progress / $delta_time" | bc -l)
-            remaining=$(echo "(1 - $progress) / $speed" | bc -l)
-            minutes=$(echo "$remaining / 60" | bc -l)
-            hours=$(echo "$minutes / 60" | bc -l)
-            eta=$(date -d "+$((remaining)) seconds" "+%Y-%m-%d %H:%M:%S")
-
-            echo -e "${YELLOW}预计剩余时间：$(printf "%.1f" $minutes) 分钟（约 $(printf "%.2f" $hours) 小时）"
-            echo -e "预计完成时间：$eta${NC}"
+            local delta_time=$((now_ts - last_ts))
+            
+            # 使用 bc 计算浮点数差值
+            if [ "$delta_time" -gt 60 ] && command -v bc >/dev/null 2>&1; then
+                local delta_progress=$(echo "$progress - $last_progress" | bc -l 2>/dev/null || echo "0")
+                
+                # 检查是否有进展
+                if (( $(echo "$delta_progress > 0" | bc -l 2>/dev/null || echo "0") )); then
+                    local speed=$(echo "$delta_progress / $delta_time" | bc -l 2>/dev/null || echo "0")
+                    local remaining_progress=$(echo "1 - $progress" | bc -l 2>/dev/null || echo "1")
+                    local remaining_seconds=$(echo "$remaining_progress / $speed" | bc -l 2>/dev/null || echo "0")
+                    
+                    # 转换为可读时间
+                    if (( $(echo "$remaining_seconds > 0" | bc -l 2>/dev/null || echo "0") )); then
+                        local hours=$(echo "$remaining_seconds / 3600" | bc -l 2>/dev/null || echo "0")
+                        local days=$(echo "$hours / 24" | bc -l 2>/dev/null || echo "0")
+                        
+                        hours=$(printf "%.1f" "$hours" 2>/dev/null || echo "0.0")
+                        days=$(printf "%.1f" "$days" 2>/dev/null || echo "0.0")
+                        
+                        echo -e "${YELLOW}基于最近进展预估剩余时间：约 ${hours} 小时（${days} 天）${NC}"
+                        
+                        # 计算预计完成时间
+                        local eta_timestamp=$((now_ts + $(echo "$remaining_seconds" | cut -d'.' -f1)))
+                        local eta=$(date -d "@$eta_timestamp" "+%Y-%m-%d %H:%M:%S" 2>/dev/null || echo "计算失败")
+                        echo -e "${YELLOW}预计完成时间：$eta${NC}"
+                    fi
+                else
+                    echo -e "${YELLOW}同步速度较慢，请检查网络连接和磁盘性能${NC}"
+                fi
+            fi
         fi
     fi
 
     # 记录当前状态
-    echo "$now_ts,$progress,$blocks" > "$tmp_file"
+    echo "$now_ts,$progress,$blocks" >> "$tmp_file"
+    
+    # 保持文件大小，只保留最近10条记录
+    if [ -f "$tmp_file" ]; then
+        tail -n 10 "$tmp_file" > "${tmp_file}.tmp" && mv "${tmp_file}.tmp" "$tmp_file"
+    fi
 }
+
 # 显示帮助信息
 show_help() {
     echo "Bitcoin节点管理脚本"
@@ -419,6 +585,7 @@ show_help() {
     echo "  uninstall - 卸载节点"
     echo "  logs      - 查看最近100条日志"
     echo "  sync      - 查看同步进度"
+    echo "  rpc-url   - 显示RPC连接信息和完整URL"
     echo ""
     echo "环境变量:"
     echo "  BITCOIN_NETWORK   - 网络类型 (mainnet|testnet, 默认: mainnet)"
@@ -431,6 +598,11 @@ show_help() {
     echo "  BITCOIN_NETWORK=testnet $0 --force install"
     echo "  $0 status"
     echo "  $0 health"
+    echo "  $0 sync"
+    echo "  $0 rpc-url"
+    echo ""
+    echo "获取RPC URL用于脚本调用:"
+    echo "  RPC_URL=\$($0 rpc-url --url-only)"
     echo ""
     echo "nohup使用示例:"
     echo "  nohup $0 --force install > install.log 2>&1 &"
@@ -443,6 +615,10 @@ main() {
         case $1 in
             --force)
                 FORCE_MODE=true
+                shift
+                ;;
+            --url-only)
+                URL_ONLY=true
                 shift
                 ;;
             -h|--help)
@@ -478,6 +654,9 @@ main() {
     if [ "$BITCOIN_NETWORK" = "testnet" ]; then
         BITCOIN_LOG_FILE="$BITCOIN_DATA_DIR/testnet3/debug.log"
         BITCOIN_PID_FILE="$BITCOIN_DATA_DIR/testnet3/bitcoind.pid"
+        DEFAULT_RPC_PORT="18332"
+    else
+        DEFAULT_RPC_PORT="8332"
     fi
     
     case "$COMMAND" in
@@ -504,6 +683,13 @@ main() {
             ;;
         sync)
             sync_progress
+            ;;
+        rpc-url)
+            if [ "$URL_ONLY" = "true" ]; then
+                get_rpc_url_only
+            else
+                show_rpc_url
+            fi
             ;;
         *)
             log_error "未知命令: $COMMAND"
