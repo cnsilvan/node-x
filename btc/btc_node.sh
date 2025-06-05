@@ -343,7 +343,7 @@ view_logs() {
 }
 # 查看同步进度并预计同步完成时间
 sync_progress() {
-    if ! command -v bitcoin-cli >/dev/null 2>&1; then
+       if ! command -v bitcoin-cli >/dev/null 2>&1; then
         log_error "未找到 bitcoin-cli 命令，请确认是否已安装 Bitcoin Core"
         exit 1
     fi
@@ -354,25 +354,26 @@ sync_progress() {
     fi
 
     local info=$(bitcoin-cli -conf="$BITCOIN_CONF_FILE" -datadir="$BITCOIN_DATA_DIR" getblockchaininfo)
-    local progress=$(echo "$info" | grep -o '"verificationprogress":[0-9.]*' | cut -d':' -f2)
+    local progress=$(echo "$info" | grep -o '"verificationprogress":[0-9.e-]*' | cut -d':' -f2)
     local blocks=$(echo "$info" | grep -o '"blocks":[0-9]*' | cut -d':' -f2)
+    local headers=$(echo "$info" | grep -o '"headers":[0-9]*' | cut -d':' -f2)
 
-    if [ -z "$progress" ]; then
-        log_error "无法获取同步进度"
-        exit 1
-    fi
+    percent=$(echo "$progress * 100" | bc -l | xargs printf "%.6f")
+    echo -e "${GREEN}同步进度：$percent%（当前高度：$blocks / 区块头：$headers）${NC}"
 
-    # 输出进度百分比
-    percent=$(echo "$progress * 100" | bc -l | xargs printf "%.2f")
-    echo -e "${GREEN}同步进度：$percent% （区块高度：$blocks）${NC}"
-
-    # 检查是否已经同步完毕
     if (( $(echo "$progress >= 0.9999" | bc -l) )); then
         echo -e "${GREEN}节点已同步完成。${NC}"
         return 0
     fi
 
-    # 获取上一次记录信息（可选功能：持久化）
+    # 初期阶段提示
+    if (( blocks < 100000 )); then
+        echo -e "${YELLOW}同步刚开始，当前区块高度还低（<10万），这是最慢阶段，请耐心等待。${NC}"
+        echo -e "${YELLOW}预计同步时间可能超过 3～7 天，视网络带宽和磁盘性能而定。${NC}"
+        return 0
+    fi
+
+    # 记录上次进度文件
     tmp_file="/tmp/.bitcoin_sync_progress"
     now_ts=$(date +%s)
 
@@ -384,14 +385,12 @@ sync_progress() {
 
         delta_time=$((now_ts - last_ts))
         delta_progress=$(echo "$progress - $last_progress" | bc -l)
-        delta_blocks=$((blocks - last_blocks))
 
         if (( delta_time > 0 )) && (( $(echo "$delta_progress > 0" | bc -l) )); then
             speed=$(echo "$delta_progress / $delta_time" | bc -l)
             remaining=$(echo "(1 - $progress) / $speed" | bc -l)
             minutes=$(echo "$remaining / 60" | bc -l)
             hours=$(echo "$minutes / 60" | bc -l)
-
             eta=$(date -d "+$((remaining)) seconds" "+%Y-%m-%d %H:%M:%S")
 
             echo -e "${YELLOW}预计剩余时间：$(printf "%.1f" $minutes) 分钟（约 $(printf "%.2f" $hours) 小时）"
@@ -399,7 +398,7 @@ sync_progress() {
         fi
     fi
 
-    # 记录当前进度
+    # 记录当前状态
     echo "$now_ts,$progress,$blocks" > "$tmp_file"
 }
 # 显示帮助信息
