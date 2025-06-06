@@ -956,8 +956,13 @@ sync_progress() {
                         echo -e "${YELLOW}基于最近进展预估剩余时间：约 ${hours} 小时（${days} 天）${NC}"
                         
                         # 计算预计完成时间，显示本地时区
-                        local eta_timestamp=$((now_ts + $(echo "$remaining_seconds" | cut -d'.' -f1)))
-                        local eta_local=$(date -d "@$eta_timestamp" "+%Y-%m-%d %H:%M:%S %Z" 2>/dev/null || echo "计算失败")
+                        local remaining_seconds_int=$(echo "$remaining_seconds" | cut -d'.' -f1)
+                        if [ -n "$remaining_seconds_int" ] && [ "$remaining_seconds_int" -gt 0 ] 2>/dev/null; then
+                            local eta_timestamp=$((now_ts + remaining_seconds_int))
+                            local eta_local=$(date -d "@$eta_timestamp" "+%Y-%m-%d %H:%M:%S %Z" 2>/dev/null || echo "计算失败")
+                        else
+                            local eta_local="计算失败"
+                        fi
                         local timezone=$(date "+%Z %z" 2>/dev/null || echo "")
                         echo -e "${YELLOW}预计完成时间：$eta_local${NC}"
                         if [ -n "$timezone" ]; then
