@@ -322,12 +322,15 @@ show_rpc_url() {
     local local_ip=$(get_local_ip)
     local public_ip=$(get_public_ip)
 
+    # 检测实际网络类型
+    local actual_network=$(detect_actual_network)
+    
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo -e "${GREEN}Bitcoin节点RPC连接信息${NC}"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
-    echo -e "${YELLOW}网络类型:${NC} $BITCOIN_NETWORK"
+    echo -e "${YELLOW}网络类型:${NC} $actual_network"
     echo -e "${YELLOW}RPC端口:${NC} $rpc_port"
     echo -e "${YELLOW}RPC用户:${NC} $rpc_user"
     echo -e "${YELLOW}RPC密码:${NC} $rpc_password"
@@ -358,11 +361,13 @@ show_rpc_url() {
         echo -e "${YELLOW}钱包功能:${NC} 启用"
     fi
     
-    # 显示网络配置
-    if [ "$BITCOIN_NETWORK" = "testnet" ]; then
+    # 显示网络配置 - 基于实际配置文件 (重用之前检测的结果)
+    if [ "$actual_network" = "testnet" ]; then
         echo -e "${YELLOW}网络配置:${NC} 测试网 (RPC配置在[test]节中)"
-    else
+    elif [ "$actual_network" = "mainnet" ]; then
         echo -e "${YELLOW}网络配置:${NC} 主网 (RPC配置在全局)"
+    else
+        echo -e "${YELLOW}网络配置:${NC} 未知 (配置文件异常)"
     fi
     
     echo ""
@@ -511,6 +516,21 @@ get_rpc_url_only() {
 
 # RPC配置管理函数
 
+# 从配置文件检测实际的网络类型
+detect_actual_network() {
+    if [ ! -f "$BITCOIN_CONF_FILE" ]; then
+        echo "unknown"
+        return 1
+    fi
+    
+    # 检查配置文件中是否有testnet=1
+    if grep -q "^testnet=1" "$BITCOIN_CONF_FILE" 2>/dev/null; then
+        echo "testnet"
+    else
+        echo "mainnet"
+    fi
+}
+
 # 从配置文件读取实际的RPC配置
 get_actual_rpc_config() {
     if [ ! -f "$BITCOIN_CONF_FILE" ]; then
@@ -521,8 +541,9 @@ get_actual_rpc_config() {
     local actual_bind=""
     local actual_allowip=""
     local has_auth="true"
+    local actual_network=$(detect_actual_network)
     
-    if [ "$BITCOIN_NETWORK" = "testnet" ]; then
+    if [ "$actual_network" = "testnet" ]; then
         # 测试网：从[test]节读取
         actual_bind=$(awk '/^\[test\]/{flag=1;next}/^\[/{flag=0}flag && /^rpcbind=/{print $0}' "$BITCOIN_CONF_FILE" | cut -d'=' -f2 | head -n1)
         actual_allowip=$(awk '/^\[test\]/{flag=1;next}/^\[/{flag=0}flag && /^rpcallowip=/{print $0}' "$BITCOIN_CONF_FILE" | cut -d'=' -f2 | head -n1)
