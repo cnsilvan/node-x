@@ -1381,14 +1381,44 @@ uninstall_bitcoin() {
 view_logs() {
     log_info "显示最近100条日志..."
     
-    if [ -f "$BITCOIN_LOG_FILE" ]; then
-        tail -n 100 "$BITCOIN_LOG_FILE"
+    # 根据实际配置文件确定日志文件路径
+    local actual_network=$(detect_actual_network)
+    local log_file=""
+    
+    if [ "$actual_network" = "testnet" ]; then
+        log_file="$BITCOIN_DATA_DIR/testnet3/debug.log"
     else
-        log_warn "日志文件不存在: $BITCOIN_LOG_FILE"
+        log_file="$BITCOIN_DATA_DIR/debug.log"
+    fi
+    
+    if [ -f "$log_file" ]; then
+        log_info "显示日志文件: $log_file"
+        tail -n 100 "$log_file"
+    else
+        log_warn "日志文件不存在: $log_file"
         
-        # 尝试显示systemd日志
-        log_info "显示systemd日志..."
-        sudo journalctl -u bitcoind -n 100 --no-pager
+        # 如果实际网络类型与脚本参数不同，尝试另一个路径
+        local fallback_log=""
+        if [ "$actual_network" = "testnet" ]; then
+            fallback_log="$BITCOIN_DATA_DIR/debug.log"
+        else
+            fallback_log="$BITCOIN_DATA_DIR/testnet3/debug.log"
+        fi
+        
+        if [ -f "$fallback_log" ]; then
+            log_info "尝试备用日志文件: $fallback_log"
+            tail -n 100 "$fallback_log"
+        else
+            # 尝试显示systemd日志
+            log_info "显示systemd日志..."
+            sudo journalctl -u bitcoind -n 100 --no-pager 2>/dev/null || {
+                log_error "无法找到任何日志文件"
+                log_info "可能的日志位置:"
+                log_info "  主网: $BITCOIN_DATA_DIR/debug.log"
+                log_info "  测试网: $BITCOIN_DATA_DIR/testnet3/debug.log"
+                return 1
+            }
+        fi
     fi
 }
 
