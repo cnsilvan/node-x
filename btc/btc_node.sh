@@ -368,12 +368,26 @@ show_rpc_url() {
     echo ""
     echo -e "${GREEN}RPC连接URL:${NC}"
     echo -e "${YELLOW}本地连接:${NC} http://${rpc_user}:${rpc_password}@127.0.0.1:${rpc_port}/"
-    if [ -n "$local_ip" ]; then
-        echo -e "${YELLOW}局域网连接:${NC} http://${rpc_user}:${rpc_password}@${local_ip}:${rpc_port}/"
+    
+    # 获取实际绑定地址来决定显示哪些连接选项
+    local config_info=$(get_actual_rpc_config)
+    if [ "$config_info" != "config_not_found" ]; then
+        local actual_bind=$(echo "$config_info" | cut -d':' -f1)
+        
+        if [ "$actual_bind" = "0.0.0.0" ]; then
+            # 绑定到所有接口，显示局域网和公网连接
+            if [ -n "$local_ip" ]; then
+                echo -e "${YELLOW}局域网连接:${NC} http://${rpc_user}:${rpc_password}@${local_ip}:${rpc_port}/"
+            fi
+            if [ -n "$public_ip" ]; then
+                echo -e "${YELLOW}公网连接:${NC} http://${rpc_user}:${rpc_password}@${public_ip}:${rpc_port}/"
+            fi
+        elif [ "$actual_bind" != "127.0.0.1" ]; then
+            # 绑定到特定IP
+            echo -e "${YELLOW}绑定地址连接:${NC} http://${rpc_user}:${rpc_password}@${actual_bind}:${rpc_port}/"
+        fi
     fi
-    if [ -n "$public_ip" ]; then
-        echo -e "${YELLOW}公网连接:${NC} http://${rpc_user}:${rpc_password}@${public_ip}:${rpc_port}/"
-    fi
+    
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
@@ -382,10 +396,19 @@ show_rpc_url() {
     echo -e "${YELLOW}curl命令示例 (本地):${NC}"
     echo "curl -u \"$rpc_user:$rpc_password\" -d '{\"jsonrpc\":\"1.0\",\"id\":\"test\",\"method\":\"getblockchaininfo\",\"params\":[]}' -H 'content-type: text/plain;' http://127.0.0.1:$rpc_port/"
     
-    if [ -n "$public_ip" ]; then
-        echo ""
-        echo -e "${YELLOW}curl命令示例 (公网):${NC}"
-        echo "curl -u \"$rpc_user:$rpc_password\" -d '{\"jsonrpc\":\"1.0\",\"id\":\"test\",\"method\":\"getblockchaininfo\",\"params\":[]}' -H 'content-type: text/plain;' http://$public_ip:$rpc_port/"
+    # 基于实际绑定地址显示相应示例
+    if [ "$config_info" != "config_not_found" ]; then
+        local actual_bind=$(echo "$config_info" | cut -d':' -f1)
+        
+        if [ "$actual_bind" = "0.0.0.0" ] && [ -n "$public_ip" ]; then
+            echo ""
+            echo -e "${YELLOW}curl命令示例 (公网):${NC}"
+            echo "curl -u \"$rpc_user:$rpc_password\" -d '{\"jsonrpc\":\"1.0\",\"id\":\"test\",\"method\":\"getblockchaininfo\",\"params\":[]}' -H 'content-type: text/plain;' http://$public_ip:$rpc_port/"
+        elif [ "$actual_bind" != "127.0.0.1" ]; then
+            echo ""
+            echo -e "${YELLOW}curl命令示例 (绑定地址):${NC}"
+            echo "curl -u \"$rpc_user:$rpc_password\" -d '{\"jsonrpc\":\"1.0\",\"id\":\"test\",\"method\":\"getblockchaininfo\",\"params\":[]}' -H 'content-type: text/plain;' http://$actual_bind:$rpc_port/"
+        fi
     fi
     
     echo ""
@@ -396,14 +419,27 @@ show_rpc_url() {
     echo "response = requests.post(rpc_url, json=payload)"
     echo "print(response.json())"
     
-    if [ -n "$public_ip" ]; then
-        echo ""
-        echo -e "${YELLOW}Python示例 (公网):${NC}"
-        echo "import requests"
-        echo "rpc_url = 'http://${rpc_user}:${rpc_password}@${public_ip}:${rpc_port}/'"
-        echo "payload = {\"jsonrpc\":\"1.0\",\"id\":\"test\",\"method\":\"getblockchaininfo\",\"params\":[]}"
-        echo "response = requests.post(rpc_url, json=payload)"
-        echo "print(response.json())"
+    # 基于实际绑定地址显示相应示例
+    if [ "$config_info" != "config_not_found" ]; then
+        local actual_bind=$(echo "$config_info" | cut -d':' -f1)
+        
+        if [ "$actual_bind" = "0.0.0.0" ] && [ -n "$public_ip" ]; then
+            echo ""
+            echo -e "${YELLOW}Python示例 (公网):${NC}"
+            echo "import requests"
+            echo "rpc_url = 'http://${rpc_user}:${rpc_password}@${public_ip}:${rpc_port}/'"
+            echo "payload = {\"jsonrpc\":\"1.0\",\"id\":\"test\",\"method\":\"getblockchaininfo\",\"params\":[]}"
+            echo "response = requests.post(rpc_url, json=payload)"
+            echo "print(response.json())"
+        elif [ "$actual_bind" != "127.0.0.1" ]; then
+            echo ""
+            echo -e "${YELLOW}Python示例 (绑定地址):${NC}"
+            echo "import requests"
+            echo "rpc_url = 'http://${rpc_user}:${rpc_password}@${actual_bind}:${rpc_port}/'"
+            echo "payload = {\"jsonrpc\":\"1.0\",\"id\":\"test\",\"method\":\"getblockchaininfo\",\"params\":[]}"
+            echo "response = requests.post(rpc_url, json=payload)"
+            echo "print(response.json())"
+        fi
     fi
     
     echo ""
@@ -413,13 +449,25 @@ show_rpc_url() {
     echo "const payload = {jsonrpc:'1.0',id:'test',method:'getblockchaininfo',params:[]};"
     echo "axios.post(rpcUrl, payload).then(res => console.log(res.data));"
     
-    if [ -n "$public_ip" ]; then
-        echo ""
-        echo -e "${YELLOW}Node.js示例 (公网):${NC}"
-        echo "const axios = require('axios');"
-        echo "const rpcUrl = 'http://${rpc_user}:${rpc_password}@${public_ip}:${rpc_port}/';"
-        echo "const payload = {jsonrpc:'1.0',id:'test',method:'getblockchaininfo',params:[]};"
-        echo "axios.post(rpcUrl, payload).then(res => console.log(res.data));"
+    # 基于实际绑定地址显示相应示例
+    if [ "$config_info" != "config_not_found" ]; then
+        local actual_bind=$(echo "$config_info" | cut -d':' -f1)
+        
+        if [ "$actual_bind" = "0.0.0.0" ] && [ -n "$public_ip" ]; then
+            echo ""
+            echo -e "${YELLOW}Node.js示例 (公网):${NC}"
+            echo "const axios = require('axios');"
+            echo "const rpcUrl = 'http://${rpc_user}:${rpc_password}@${public_ip}:${rpc_port}/';"
+            echo "const payload = {jsonrpc:'1.0',id:'test',method:'getblockchaininfo',params:[]};"
+            echo "axios.post(rpcUrl, payload).then(res => console.log(res.data));"
+        elif [ "$actual_bind" != "127.0.0.1" ]; then
+            echo ""
+            echo -e "${YELLOW}Node.js示例 (绑定地址):${NC}"
+            echo "const axios = require('axios');"
+            echo "const rpcUrl = 'http://${rpc_user}:${rpc_password}@${actual_bind}:${rpc_port}/';"
+            echo "const payload = {jsonrpc:'1.0',id:'test',method:'getblockchaininfo',params:[]};"
+            echo "axios.post(rpcUrl, payload).then(res => console.log(res.data));"
+        fi
     fi
     echo ""
     
@@ -441,17 +489,8 @@ show_rpc_url() {
     fi
     echo ""
     
-    # 安全提醒
-    echo -e "${RED}⚠️  安全提醒:${NC}"
-    echo "• RPC已绑定到0.0.0.0，允许远程访问"
-    echo "• 公网连接存在安全风险，请确保："
-    echo "  - 防火墙已正确配置，限制访问源"
-    echo "  - 使用强密码和HTTPS(如适用)"
-    echo "  - 定期更换RPC密码"
-    echo "  - 不要在不安全的网络环境中暴露"
-    echo "• 建议使用VPN或SSH隧道进行远程访问"
-    echo "• 生产环境建议绑定到特定IP而非0.0.0.0"
-    echo ""
+    # 基于实际配置的安全提示
+    generate_security_warning
 }
 
 # 仅返回RPC URL (用于脚本调用)
@@ -471,6 +510,101 @@ get_rpc_url_only() {
 }
 
 # RPC配置管理函数
+
+# 从配置文件读取实际的RPC配置
+get_actual_rpc_config() {
+    if [ ! -f "$BITCOIN_CONF_FILE" ]; then
+        echo "config_not_found"
+        return 1
+    fi
+    
+    local actual_bind=""
+    local actual_allowip=""
+    local has_auth="true"
+    
+    if [ "$BITCOIN_NETWORK" = "testnet" ]; then
+        # 测试网：从[test]节读取
+        actual_bind=$(awk '/^\[test\]/{flag=1;next}/^\[/{flag=0}flag && /^rpcbind=/{print $0}' "$BITCOIN_CONF_FILE" | cut -d'=' -f2 | head -n1)
+        actual_allowip=$(awk '/^\[test\]/{flag=1;next}/^\[/{flag=0}flag && /^rpcallowip=/{print $0}' "$BITCOIN_CONF_FILE" | cut -d'=' -f2 | head -n1)
+    else
+        # 主网：从全局配置读取
+        actual_bind=$(grep "^rpcbind=" "$BITCOIN_CONF_FILE" 2>/dev/null | cut -d'=' -f2 | head -n1)
+        actual_allowip=$(grep "^rpcallowip=" "$BITCOIN_CONF_FILE" 2>/dev/null | cut -d'=' -f2 | head -n1)
+    fi
+    
+    # 检查是否有认证配置
+    if ! grep -q "^rpcuser=" "$BITCOIN_CONF_FILE" 2>/dev/null || ! grep -q "^rpcpassword=" "$BITCOIN_CONF_FILE" 2>/dev/null; then
+        has_auth="false"
+    fi
+    
+    # 设置默认值
+    if [ -z "$actual_bind" ]; then
+        actual_bind="127.0.0.1"
+    fi
+    if [ -z "$actual_allowip" ]; then
+        actual_allowip="127.0.0.1"
+    fi
+    
+    echo "$actual_bind:$actual_allowip:$has_auth"
+}
+
+# 生成基于实际配置的安全提示
+generate_security_warning() {
+    local config_info=$(get_actual_rpc_config)
+    if [ "$config_info" = "config_not_found" ]; then
+        echo -e "${RED}⚠️  警告: 配置文件未找到${NC}"
+        return
+    fi
+    
+    local actual_bind=$(echo "$config_info" | cut -d':' -f1)
+    local actual_allowip=$(echo "$config_info" | cut -d':' -f2)
+    local has_auth=$(echo "$config_info" | cut -d':' -f3)
+    
+    echo -e "${GREEN}当前RPC安全配置:${NC}"
+    echo -e "  绑定地址: $actual_bind"
+    echo -e "  允许IP: $actual_allowip"
+    echo -e "  认证状态: $([ "$has_auth" = "true" ] && echo "已启用" || echo "已禁用")"
+    echo ""
+    
+    # 根据实际配置生成安全提示
+    if [ "$actual_bind" = "0.0.0.0" ]; then
+        echo -e "${RED}⚠️  安全警告: 高风险配置${NC}"
+        echo "• RPC绑定到所有接口 (0.0.0.0)，允许外部访问"
+        if [ "$actual_allowip" = "0.0.0.0/0" ]; then
+            echo -e "${RED}• 允许任何IP访问，风险极高！${NC}"
+        else
+            echo "• 允许特定IP访问: $actual_allowip"
+        fi
+        echo ""
+        echo "建议的安全措施:"
+        echo "  - 使用防火墙限制访问源"
+        echo "  - 定期更换RPC密码"
+        echo "  - 考虑使用VPN或SSH隧道"
+        echo "  - 生产环境建议绑定到特定IP"
+        if [ "$has_auth" = "false" ]; then
+            echo -e "  - ${RED}立即启用RPC认证！${NC}"
+        fi
+    elif [ "$actual_bind" = "127.0.0.1" ]; then
+        echo -e "${GREEN}✅ 安全配置: 低风险${NC}"
+        echo "• RPC仅绑定到本地 (127.0.0.1)"
+        echo "• 仅允许本机访问，安全性较高"
+        if [ "$has_auth" = "false" ]; then
+            echo -e "${YELLOW}• 注意: 未启用RPC认证${NC}"
+        fi
+    else
+        echo -e "${YELLOW}⚠️  中等风险配置${NC}"
+        echo "• RPC绑定到特定地址: $actual_bind"
+        echo "• 允许的IP: $actual_allowip"
+        echo ""
+        echo "建议:"
+        echo "  - 确保防火墙配置正确"
+        echo "  - 定期检查访问日志"
+        if [ "$has_auth" = "false" ]; then
+            echo -e "  - ${YELLOW}建议启用RPC认证${NC}"
+        fi
+    fi
+    echo ""
+}
 
 # 获取重启模式
 get_restart_mode() {
