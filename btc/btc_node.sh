@@ -39,6 +39,8 @@ BITCOIN_VERSION="28.1"
 BITCOIN_SERVICE_NAME="bitcoind"
 FORCE_MODE=false
 PRUNE_MODE=false
+FORCE_RESTART=false
+SKIP_RESTART=false
 
 # 修剪模式配置 (GB) - 根据网络类型设置不同默认值
 # 将在网络类型确定后重新设置
@@ -344,7 +346,7 @@ show_rpc_url() {
     # 显示配置模式信息
     if grep -q "^prune=" "$BITCOIN_CONF_FILE" 2>/dev/null; then
         local prune_size=$(grep "^prune=" "$BITCOIN_CONF_FILE" | cut -d'=' -f2)
-        local prune_gb=$((prune_size / 1000))
+        local prune_gb=$((prune_size / 1024))
         echo -e "${YELLOW}修剪模式:${NC} 启用 (保留${prune_gb}GB区块数据)"
     else
         echo -e "${YELLOW}修剪模式:${NC} 禁用 (保留完整区块链)"
@@ -466,6 +468,331 @@ get_rpc_url_only() {
 
     # 默认返回本地连接，避免安全风险
     echo "http://${rpc_user}:${rpc_password}@127.0.0.1:${rpc_port}/"
+}
+
+# RPC配置管理函数
+
+# 获取重启模式
+get_restart_mode() {
+    local restart_mode=""
+    if [ "$FORCE_RESTART" = "true" ]; then
+        restart_mode="true"
+    elif [ "$SKIP_RESTART" = "true" ]; then
+        restart_mode="false"
+    fi
+    echo "$restart_mode"
+}
+
+# 验证IP地址格式
+validate_ip() {
+    local ip="$1"
+    # 支持IP地址、CIDR和特殊值
+    if [[ "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})?$ ]] || [[ "$ip" == "127.0.0.1" ]] || [[ "$ip" == "0.0.0.0/0" ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# 备份配置文件
+backup_config() {
+    local backup_file="${BITCOIN_CONF_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
+    cp "$BITCOIN_CONF_FILE" "$backup_file"
+    log_info "配置文件已备份至: $backup_file"
+}
+
+# 更新配置并重启节点
+update_config_and_restart() {
+    local config_type="$1"  # 配置类型: "rpc_network", "rpc_auth", "other"
+    local force_restart="$2"  # 是否强制重启: "true", "false", 默认根据配置类型决定
+    
+    # 检查节点是否在运行
+    local is_running=false
+    if pgrep bitcoind >/dev/null 2>&1; then
+        is_running=true
+    fi
+    
+    if [ "$is_running" = "false" ]; then
+        log_info "节点未运行，配置将在下次启动时生效"
+        return 0
+    fi
+    
+    # 根据配置类型决定是否需要重启
+    local needs_restart="unknown"
+    case "$config_type" in
+        "rpc_network")
+            # RPC网络相关配置(rpcbind, rpcallowip)需要重启
+            needs_restart="true"
+            log_info "RPC网络配置已修改，需要重启节点以生效"
+            ;;
+        "rpc_auth")
+            # RPC认证配置(rpcuser, rpcpassword)可能不需要重启
+            # 但为了安全起见，建议重启
+            needs_restart="optional"
+            log_info "RPC认证配置已修改"
+            ;;
+        "other")
+            # 其他配置
+            needs_restart="true"
+            log_info "配置已修改"
+            ;;
+    esac
+    
+    # 如果指定了强制重启，则覆盖默认行为
+    if [ "$force_restart" = "true" ]; then
+        needs_restart="true"
+    elif [ "$force_restart" = "false" ]; then
+        needs_restart="false"
+    fi
+    
+    # 执行重启逻辑
+    if [ "$needs_restart" = "true" ]; then
+        log_info "重启节点以应用配置更改..."
+        restart_bitcoin
+    elif [ "$needs_restart" = "optional" ]; then
+        echo ""
+        log_warn "建议重启节点以确保配置完全生效"
+        read -p "是否现在重启节点? (y/N): " confirm_restart
+        if [[ $confirm_restart =~ ^[Yy]$ ]]; then
+            log_info "重启节点..."
+            restart_bitcoin
+        else
+            log_info "跳过重启，配置可能在下次重启后生效"
+            log_info "如需立即应用所有更改，请手动执行: $0 restart"
+        fi
+    else
+        log_info "配置无需重启即可生效"
+    fi
+}
+
+# 设置允许的IP地址
+set_allow_ip() {
+    local ip_list="$1"
+    
+    if [ -z "$ip_list" ]; then
+        log_error "请指定允许的IP地址"
+        log_info "使用方法: $0 set-allow-ip <IP地址或CIDR>"
+        log_info "示例: $0 set-allow-ip 192.168.1.0/24"
+        log_info "示例: $0 set-allow-ip \"127.0.0.1,192.168.1.100\""
+        return 1
+    fi
+    
+    # 验证配置文件存在
+    if [ ! -f "$BITCOIN_CONF_FILE" ]; then
+        log_error "配置文件不存在: $BITCOIN_CONF_FILE"
+        return 1
+    fi
+    
+    backup_config
+    
+    # 分割IP列表并验证
+    local valid_ips=""
+    IFS=',' read -ra IP_ARRAY <<< "$ip_list"
+    for ip in "${IP_ARRAY[@]}"; do
+        ip=$(echo "$ip" | tr -d ' ')  # 去除空格
+        if validate_ip "$ip"; then
+            if [ -z "$valid_ips" ]; then
+                valid_ips="$ip"
+            else
+                valid_ips="$valid_ips,$ip"
+            fi
+        else
+            log_error "无效的IP地址格式: $ip"
+            return 1
+        fi
+    done
+    
+    log_info "设置允许的IP地址: $valid_ips"
+    
+    # 创建临时文件
+    local temp_file=$(mktemp)
+    
+    if [ "$BITCOIN_NETWORK" = "testnet" ]; then
+        # 测试网：更新[test]节中的rpcallowip
+        awk -v new_ips="$valid_ips" '
+        /^\[test\]/{in_test=1}
+        /^\[.*\]/ && !/^\[test\]/{in_test=0}
+        in_test && /^rpcallowip=/{
+            split(new_ips, ips, ",")
+            for (i in ips) {
+                print "rpcallowip=" ips[i]
+            }
+            next
+        }
+        {print}
+        ' "$BITCOIN_CONF_FILE" > "$temp_file"
+    else
+        # 主网：更新全局rpcallowip
+        awk -v new_ips="$valid_ips" '
+        /^rpcallowip=/ && !in_section {
+            split(new_ips, ips, ",")
+            for (i in ips) {
+                print "rpcallowip=" ips[i]
+            }
+            next
+        }
+        /^\[.*\]/{in_section=1}
+        /^$/{in_section=0}
+        {print}
+        ' "$BITCOIN_CONF_FILE" > "$temp_file"
+    fi
+    
+    mv "$temp_file" "$BITCOIN_CONF_FILE"
+    
+    log_info "IP访问控制列表已更新"
+    update_config_and_restart "rpc_network" "$(get_restart_mode)"
+}
+
+# 绑定公网访问
+bind_public() {
+    if [ ! -f "$BITCOIN_CONF_FILE" ]; then
+        log_error "配置文件不存在: $BITCOIN_CONF_FILE"
+        return 1
+    fi
+    
+    backup_config
+    log_info "配置RPC绑定到公网 (0.0.0.0)..."
+    
+    local temp_file=$(mktemp)
+    
+    if [ "$BITCOIN_NETWORK" = "testnet" ]; then
+        # 测试网：更新[test]节
+        awk '
+        /^\[test\]/{in_test=1}
+        /^\[.*\]/ && !/^\[test\]/{in_test=0}
+        in_test && /^rpcbind=/{print "rpcbind=0.0.0.0"; next}
+        in_test && /^rpcallowip=/ && /127\.0\.0\.1/{print "rpcallowip=0.0.0.0/0"; next}
+        {print}
+        ' "$BITCOIN_CONF_FILE" > "$temp_file"
+    else
+        # 主网：更新全局配置
+        awk '
+        /^rpcbind=/ && !in_section {print "rpcbind=0.0.0.0"; next}
+        /^rpcallowip=/ && !in_section && /127\.0\.0\.1/{print "rpcallowip=0.0.0.0/0"; next}
+        /^\[.*\]/{in_section=1}
+        /^$/{in_section=0}
+        {print}
+        ' "$BITCOIN_CONF_FILE" > "$temp_file"
+    fi
+    
+    mv "$temp_file" "$BITCOIN_CONF_FILE"
+    
+    log_info "RPC已绑定到公网 (0.0.0.0)"
+    log_warn "⚠️  安全警告: RPC现在可以从任何IP访问，请确保："
+    log_warn "   1. 防火墙已正确配置"
+    log_warn "   2. 使用强密码"
+    log_warn "   3. 考虑使用VPN或SSH隧道"
+    
+    update_config_and_restart "rpc_network" "$(get_restart_mode)"
+}
+
+# 绑定本地访问
+bind_local() {
+    if [ ! -f "$BITCOIN_CONF_FILE" ]; then
+        log_error "配置文件不存在: $BITCOIN_CONF_FILE"
+        return 1
+    fi
+    
+    backup_config
+    log_info "配置RPC绑定到本地 (127.0.0.1)..."
+    
+    local temp_file=$(mktemp)
+    
+    if [ "$BITCOIN_NETWORK" = "testnet" ]; then
+        # 测试网：更新[test]节
+        awk '
+        /^\[test\]/{in_test=1}
+        /^\[.*\]/ && !/^\[test\]/{in_test=0}
+        in_test && /^rpcbind=/{print "rpcbind=127.0.0.1"; next}
+        in_test && /^rpcallowip=/ && /0\.0\.0\.0/{print "rpcallowip=127.0.0.1"; next}
+        {print}
+        ' "$BITCOIN_CONF_FILE" > "$temp_file"
+    else
+        # 主网：更新全局配置
+        awk '
+        /^rpcbind=/ && !in_section {print "rpcbind=127.0.0.1"; next}
+        /^rpcallowip=/ && !in_section && /0\.0\.0\.0/{print "rpcallowip=127.0.0.1"; next}
+        /^\[.*\]/{in_section=1}
+        /^$/{in_section=0}
+        {print}
+        ' "$BITCOIN_CONF_FILE" > "$temp_file"
+    fi
+    
+    mv "$temp_file" "$BITCOIN_CONF_FILE"
+    
+    log_info "RPC已绑定到本地 (127.0.0.1)"
+    log_info "✅ 安全提示: RPC现在仅允许本地访问"
+    
+    update_config_and_restart "rpc_network" "$(get_restart_mode)"
+}
+
+# 重置RPC密码
+reset_password() {
+    if [ ! -f "$BITCOIN_CONF_FILE" ]; then
+        log_error "配置文件不存在: $BITCOIN_CONF_FILE"
+        return 1
+    fi
+    
+    backup_config
+    
+    # 生成新密码
+    local new_password=""
+    if command -v openssl >/dev/null 2>&1; then
+        new_password=$(openssl rand -hex 32)
+    else
+        new_password=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 32)
+    fi
+    
+    log_info "重置RPC密码..."
+    
+    local temp_file=$(mktemp)
+    awk -v new_pass="$new_password" '
+    /^rpcpassword=/{print "rpcpassword=" new_pass; next}
+    {print}
+    ' "$BITCOIN_CONF_FILE" > "$temp_file"
+    
+    mv "$temp_file" "$BITCOIN_CONF_FILE"
+    
+    log_info "RPC密码已重置"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo -e "${GREEN}新的RPC密码:${NC} ${YELLOW}$new_password${NC}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "请妥善保存此密码！"
+    
+    update_config_and_restart "rpc_auth" "$(get_restart_mode)"
+}
+
+# 移除RPC认证
+remove_auth() {
+    if [ ! -f "$BITCOIN_CONF_FILE" ]; then
+        log_error "配置文件不存在: $BITCOIN_CONF_FILE"
+        return 1
+    fi
+    
+    log_warn "⚠️  危险操作: 这将移除RPC认证，任何人都可以访问你的节点"
+    read -p "确定要移除RPC认证吗? (输入 'YES' 确认): " confirm
+    if [ "$confirm" != "YES" ]; then
+        log_info "操作已取消"
+        return 0
+    fi
+    
+    backup_config
+    log_info "移除RPC认证..."
+    
+    local temp_file=$(mktemp)
+    awk '
+    /^rpcuser=/{next}
+    /^rpcpassword=/{next}
+    {print}
+    ' "$BITCOIN_CONF_FILE" > "$temp_file"
+    
+    mv "$temp_file" "$BITCOIN_CONF_FILE"
+    
+    log_info "RPC认证已移除"
+    log_warn "⚠️  安全警告: RPC现在无需认证即可访问"
+    log_warn "   强烈建议仅在受信任的环境中使用此配置"
+    
+    update_config_and_restart "rpc_auth" "$(get_restart_mode)"
 }
 
 # 检查系统资源
@@ -677,9 +1004,9 @@ maxconnections=50
 testnet=1
 
 [test]
-rpcbind=0.0.0.0
+rpcbind=127.0.0.1
 rpcport=$DEFAULT_RPC_PORT
-rpcallowip=0.0.0.0/0
+rpcallowip=127.0.0.1
 EOF
     else
         # 主网配置
@@ -690,9 +1017,9 @@ daemon=1
 printtoconsole=0
 rpcuser=bitcoinrpc
 rpcpassword=$rpc_password
-rpcbind=0.0.0.0
+rpcbind=127.0.0.1
 rpcport=$DEFAULT_RPC_PORT
-rpcallowip=0.0.0.0/0
+rpcallowip=127.0.0.1
 $( [ "$PRUNE_MODE" = "true" ] && echo "prune=$((PRUNE_SIZE_MB))" || echo "" )
 disablewallet=1
 dbcache=1000
@@ -725,7 +1052,13 @@ EOF
     fi
     log_info "钱包功能: 禁用"
     log_info "RPC端口: $DEFAULT_RPC_PORT"
-    log_warn "RPC已绑定到0.0.0.0，请注意安全防护"
+    log_info "RPC绑定: 127.0.0.1 (仅本地访问)"
+    log_info "RPC访问控制: 127.0.0.1 (仅本地访问)"
+    echo ""
+    log_info "✅ 安全提示: 默认配置仅允许本地访问，这是最安全的配置"
+    log_info "如需远程访问，请使用以下命令:"
+    log_info "  - 绑定公网: $0 bind-public"
+    log_info "  - 设置特定IP: $0 set-allow-ip <IP地址>"
     
     # 启动服务
     start_service
@@ -1173,17 +1506,26 @@ show_help() {
     echo "选项:"
     echo "  --force   - 强制模式，跳过所有确认提示"
     echo "  --prune   - 启用修剪模式，限制数据目录大小"
+    echo "  --force-restart - 强制重启节点"
+    echo "  --skip-restart - 跳过重启节点"
     echo ""
     echo "命令:"
-    echo "  install   - 安装Bitcoin节点"
-    echo "  status    - 检查节点状态"
-    echo "  health    - 健康检查"
-    echo "  restart   - 重启节点"
-    echo "  stop      - 停止节点"
-    echo "  uninstall - 卸载节点"
-    echo "  logs      - 查看最近100条日志"
-    echo "  sync      - 查看同步进度"
-    echo "  rpc-url   - 显示RPC连接信息和完整URL"
+    echo "  install        - 安装Bitcoin节点"
+    echo "  status         - 检查节点状态"
+    echo "  health         - 健康检查"
+    echo "  restart        - 重启节点"
+    echo "  stop           - 停止节点"
+    echo "  uninstall      - 卸载节点"
+    echo "  logs           - 查看最近100条日志"
+    echo "  sync           - 查看同步进度"
+    echo "  rpc-url        - 显示RPC连接信息和完整URL"
+    echo ""
+    echo "RPC管理命令:"
+    echo "  set-allow-ip <IP地址>  - 设置允许访问的IP地址"
+    echo "  bind-public            - 绑定公网访问 (0.0.0.0)"
+    echo "  bind-local             - 绑定本地访问 (127.0.0.1)"
+    echo "  reset-password         - 重置RPC密码"
+    echo "  remove-auth            - 移除RPC认证 (危险)"
     echo ""
     echo "环境变量:"
     echo "  BITCOIN_NETWORK   - 网络类型 (mainnet|testnet, 默认: mainnet)"
@@ -1210,11 +1552,27 @@ show_help() {
     echo "  $0 sync"
     echo "  $0 rpc-url"
     echo ""
+    echo "RPC管理示例:"
+    echo "  $0 set-allow-ip 192.168.1.0/24        # 允许局域网访问"
+    echo "  $0 set-allow-ip \"127.0.0.1,10.0.0.5\"  # 允许多个IP"
+    echo "  $0 bind-public                         # 绑定公网访问"
+    echo "  $0 bind-local                          # 绑定本地访问"
+    echo "  $0 reset-password                      # 重置RPC密码"
+    echo "  $0 remove-auth                         # 移除认证(危险)"
+    echo ""
+    echo "重启控制示例:"
+    echo "  $0 --force-restart bind-public         # 绑定公网并强制重启"
+    echo "  $0 --skip-restart reset-password       # 重置密码但跳过重启"
+    echo "  $0 --skip-restart set-allow-ip 10.0.0.1 # 设置IP但跳过重启"
+    echo ""
     echo "获取RPC URL用于脚本调用:"
     echo "  RPC_URL=\$($0 rpc-url --url-only)"
     echo ""
-    echo "nohup使用示例:"
-    echo "  nohup $0 --force install > install.log 2>&1 &"
+    echo "安全建议:"
+    echo "  • 默认配置仅允许本地访问 (127.0.0.1)"
+    echo "  • 使用 bind-public 前请确保防火墙已配置"
+    echo "  • 定期使用 reset-password 更换密码"
+    echo "  • 避免在生产环境使用 remove-auth"
 }
 
 # 获取公网IP地址
@@ -1339,6 +1697,14 @@ main() {
                 PRUNE_MODE=true
                 shift
                 ;;
+            --force-restart)
+                FORCE_RESTART=true
+                shift
+                ;;
+            --skip-restart)
+                SKIP_RESTART=true
+                shift
+                ;;
             --url-only)
                 URL_ONLY=true
                 shift
@@ -1412,6 +1778,28 @@ main() {
             else
                 show_rpc_url
             fi
+            ;;
+        set-allow-ip)
+            shift  # 移除命令参数
+            if [ $# -ge 1 ]; then
+                set_allow_ip "$1"
+            else
+                log_error "请提供有效的IP地址或CIDR"
+                log_info "使用方法: $0 set-allow-ip <IP地址或CIDR>"
+                exit 1
+            fi
+            ;;
+        bind-public)
+            bind_public
+            ;;
+        bind-local)
+            bind_local
+            ;;
+        reset-password)
+            reset_password
+            ;;
+        remove-auth)
+            remove_auth
             ;;
         *)
             log_error "未知命令: $COMMAND"
