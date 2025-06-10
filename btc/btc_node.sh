@@ -40,8 +40,13 @@ BITCOIN_SERVICE_NAME="bitcoind"
 FORCE_MODE=false
 PRUNE_MODE=false
 
-# 修剪模式配置 (GB)
-PRUNE_SIZE_GB=${PRUNE_SIZE_GB:-10}  # 默认保留10GB区块数据
+# 修剪模式配置 (GB) - 根据网络类型设置不同默认值
+# 将在网络类型确定后重新设置
+PRUNE_SIZE_GB=${PRUNE_SIZE_GB:-0}  # 0表示使用默认值，将根据网络类型设置
+
+# 注意：Bitcoin Core的prune参数单位是MiB (mebibytes)
+# 1 GB ≈ 953.67 MiB，所以需要正确换算
+# PRUNE_SIZE_MB将在网络类型确定后计算
 
 # 系统相关变量 (将在detect_os()中设置)
 OS_ID=""
@@ -208,13 +213,45 @@ if [ "$BITCOIN_NETWORK" = "testnet" ]; then
     BITCOIN_LOG_FILE="$BITCOIN_DATA_DIR/testnet3/debug.log"
     BITCOIN_PID_FILE="$BITCOIN_DATA_DIR/testnet3/bitcoind.pid"
     DEFAULT_RPC_PORT="18332"
+    
+    # 设置测试网默认修剪大小
+    if [ "$PRUNE_SIZE_GB" -eq 0 ]; then
+        PRUNE_SIZE_GB=20  # 测试网默认保留20GB
+    fi
+    
+    # 测试网修剪大小合理性检查
+    TESTNET_FULL_SIZE=80  # 测试网全节点约80GB
+    if [ "$PRUNE_MODE" = "true" ] && [ "$PRUNE_SIZE_GB" -gt "$TESTNET_FULL_SIZE" ]; then
+        log_error "修剪大小($PRUNE_SIZE_GB GB)大于测试网全节点大小(约$TESTNET_FULL_SIZE GB)"
+        log_info "建议："
+        log_info "1. 设置更小的修剪大小."
+        log_info "2. 使用全节点模式."
+        exit 1
+    fi
 else
     BITCOIN_CONF_FILE="$BITCOIN_DATA_DIR/bitcoin.conf"
     BITCOIN_LOG_FILE="$BITCOIN_DATA_DIR/debug.log"
     BITCOIN_PID_FILE="$BITCOIN_DATA_DIR/bitcoind.pid"
     DEFAULT_RPC_PORT="8332"
+    
+    # 设置主网默认修剪大小
+    if [ "$PRUNE_SIZE_GB" -eq 0 ]; then
+        PRUNE_SIZE_GB=50  # 主网默认保留50GB
+    fi
+    
+    # 主网修剪大小合理性检查
+    MAINNET_FULL_SIZE=800  # 主网全节点约800GB+
+    if [ "$PRUNE_MODE" = "true" ] && [ "$PRUNE_SIZE_GB" -gt "$MAINNET_FULL_SIZE" ]; then
+        log_error "修剪大小($PRUNE_SIZE_GB GB)大于主网全节点大小(约$MAINNET_FULL_SIZE GB)"
+        log_info "建议："
+        log_info "1. 设置更小的修剪大小."
+        log_info "2. 使用全节点模式."
+        exit 1
+    fi
 fi
 
+# 计算修剪大小的MB值用于Bitcoin Core配置
+PRUNE_SIZE_MB=$((PRUNE_SIZE_GB * 1024))
 
 # 获取RPC连接信息
 get_rpc_info() {
@@ -409,7 +446,6 @@ show_rpc_url() {
     echo "  - 防火墙已正确配置，限制访问源"
     echo "  - 使用强密码和HTTPS(如适用)"
     echo "  - 定期更换RPC密码"
-    echo "  - 配置域名访问"
     echo "  - 不要在不安全的网络环境中暴露"
     echo "• 建议使用VPN或SSH隧道进行远程访问"
     echo "• 生产环境建议绑定到特定IP而非0.0.0.0"
@@ -474,15 +510,15 @@ check_system_resources() {
     esac
     
     if [ "$PRUNE_MODE" = "true" ]; then
-        # 修剪模式: 保留数据大小 + 30GB缓冲
+        # 修剪模式: 保留数据大小 + 30GB缓冲（相对保守）
         min_space=$((PRUNE_SIZE_GB + 30))
-        log_info "修剪模式: 保留${PRUNE_SIZE_GB}GB区块数据"
+        log_info "修剪模式: 保留${PRUNE_SIZE_GB}GB区块数据，需要额外30GB缓冲空间"
     else
         # 完整模式
         if [ "$BITCOIN_NETWORK" = "testnet" ]; then
-            min_space=80
+            min_space=80  # 测试网区块链较小，约50GB + 30GB缓冲
         else
-            min_space=800
+            min_space=800  # 主网区块链约700GB+，预留更多空间
         fi
     fi
     
@@ -634,7 +670,7 @@ daemon=1
 printtoconsole=0
 rpcuser=bitcoinrpc
 rpcpassword=$rpc_password
-$( [ "$PRUNE_MODE" = "true" ] && echo "prune=$((PRUNE_SIZE_GB * 1000))" || echo "" )
+$( [ "$PRUNE_MODE" = "true" ] && echo "prune=$((PRUNE_SIZE_MB))" || echo "" )
 disablewallet=1
 dbcache=1000
 maxconnections=50
@@ -657,7 +693,7 @@ rpcpassword=$rpc_password
 rpcbind=0.0.0.0
 rpcport=$DEFAULT_RPC_PORT
 rpcallowip=0.0.0.0/0
-$( [ "$PRUNE_MODE" = "true" ] && echo "prune=$((PRUNE_SIZE_GB * 1000))" || echo "" )
+$( [ "$PRUNE_MODE" = "true" ] && echo "prune=$((PRUNE_SIZE_MB))" || echo "" )
 disablewallet=1
 dbcache=1000
 maxconnections=50
@@ -1154,6 +1190,11 @@ show_help() {
     echo "  BITCOIN_DATA_DIR  - 数据目录 (默认: ~/.bitcoin)"
     echo "  BITCOIN_USER      - 运行用户 (默认: 当前用户)"
     echo "  BITCOIN_PRUNE     - 修剪模式 (默认: false)"
+    echo "  PRUNE_SIZE_GB     - 修剪保留大小GB (主网默认: 50GB, 测试网默认: 20GB)"
+    echo ""
+    echo "修剪模式说明:"
+    echo "  主网: 修剪大小不能超过800GB，否则建议使用全节点"
+    echo "  测试网: 修剪大小不能超过80GB，否则建议使用全节点"
     echo ""
     echo "示例:"
     echo "  $0 install"
@@ -1162,6 +1203,8 @@ show_help() {
     echo "  $0 --force --prune install"
     echo "  BITCOIN_NETWORK=testnet $0 --force install"
     echo "  BITCOIN_NETWORK=testnet PRUNE_SIZE_GB=30 $0 --prune install"
+    echo "  PRUNE_SIZE_GB=30 $0 --prune install  # 主网30GB修剪模式"
+    echo "  PRUNE_SIZE_GB=15 $0 --prune install testnet  # 测试网15GB修剪模式"
     echo "  $0 status"
     echo "  $0 health"
     echo "  $0 sync"
