@@ -41,7 +41,7 @@ FORCE_MODE=false
 PRUNE_MODE=false
 
 # 修剪模式配置 (GB)
-PRUNE_SIZE_GB=${PRUNE_SIZE_GB:-50}  # 默认保留50GB区块数据
+PRUNE_SIZE_GB=${PRUNE_SIZE_GB:-10}  # 默认保留10GB区块数据
 
 # 系统相关变量 (将在detect_os()中设置)
 OS_ID=""
@@ -474,8 +474,8 @@ check_system_resources() {
     esac
     
     if [ "$PRUNE_MODE" = "true" ]; then
-        # 修剪模式: 保留数据大小 + 50GB缓冲
-        min_space=$((PRUNE_SIZE_GB + 50))
+        # 修剪模式: 保留数据大小 + 30GB缓冲
+        min_space=$((PRUNE_SIZE_GB + 30))
         log_info "修剪模式: 保留${PRUNE_SIZE_GB}GB区块数据"
     else
         # 完整模式
