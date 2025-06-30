@@ -58,3 +58,6 @@ curl -L https://risczero.com/install | bash
 source ~/.bashrc
 cargo install cargo-risczero
 rzup install cargo-risczero
+
+git config --global url."https://gh-proxy.com/github.com/".insteadOf "https://github.com/"
+
