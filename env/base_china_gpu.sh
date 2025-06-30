@@ -61,3 +61,5 @@ rzup install cargo-risczero
 
 git config --global url."https://gh-proxy.com/github.com/".insteadOf "https://github.com/"
 
+curl -L https://foundry.paradigm.xyz | bash
+
