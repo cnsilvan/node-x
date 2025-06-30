@@ -31,8 +31,8 @@ sudo reboot
 docker run --rm --gpus all nvidia/cuda:12.3.0-base-ubuntu22.04 nvidia-smi
 
 #安装rust
-export RUSTUP_DIST_SERVER="https://rsproxy.cn"
-export RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"
+echo -e '\n# Rust 国内镜像配置\nexport RUSTUP_DIST_SERVER="https://rsproxy.cn"\nexport RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"' >> ~/.bashrc && source ~/.bashrc
+source ~/.bashrc
 curl --proto '=https' --tlsv1.2 -sSf https://rsproxy.cn/rustup-init.sh | sh -s -- -y  
 mkdir -p ~/.cargo && cat > ~/.cargo/config <<EOF
 [source.crates-io]
@@ -53,3 +53,8 @@ EOF
 
 #安装golang
 wget https://golang.google.cn/dl/go1.24.4.linux-amd64.tar.gz -O /tmp/go.tar.gz && sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf /tmp/go.tar.gz && echo -e '\n# Go 环境变量\nexport GOROOT=/usr/local/go\nexport GOPATH=$HOME/go\nexport PATH=$PATH:$GOROOT/bin:$GOPATH/bin\nexport GO111MODULE=on\nexport GOPROXY=https://goproxy.cn,direct' >> ~/.bashrc && source ~/.bashrc
+
+curl -L https://risczero.com/install | bash
+source ~/.bashrc
+cargo install cargo-risczero
+rzup install cargo-risczero
