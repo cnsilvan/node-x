@@ -30,7 +30,10 @@ sudo reboot
 
 docker run --rm --gpus all nvidia/cuda:12.3.0-base-ubuntu22.04 nvidia-smi
 
+
+
 #安装rust
+# 国外：curl https://sh.rustup.rs -sSf | sh
 echo -e '\n# Rust 国内镜像配置\nexport RUSTUP_DIST_SERVER="https://rsproxy.cn"\nexport RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"' >> ~/.bashrc && source ~/.bashrc
 source ~/.bashrc
 curl --proto '=https' --tlsv1.2 -sSf https://rsproxy.cn/rustup-init.sh | sh -s -- -y  
@@ -58,8 +61,47 @@ curl -L https://risczero.com/install | bash
 source ~/.bashrc
 cargo install cargo-risczero
 rzup install cargo-risczero
-
+rzup install rust
 git config --global url."https://gh-proxy.com/github.com/".insteadOf "https://github.com/"
+git clone https://github.com/boundless-xyz/boundless.git
+cd boundless
+git checkout release-0.12
+git submodule update --init --recursive
+apt install build-essential  pkg-config libssl-dev -y
+cargo install --git https://github.com/risc0/risc0 bento-client --branch release-2.1 --bin bento_cli
+cargo install --locked boundless-cli
+boundless -h
+cargo install just
+#wsl 权限问题 df -h查找
+sudo mount -o remount,exec /run/user/0
 
-curl -L https://foundry.paradigm.xyz | bash
+cat <<EOL >> .env.base
+RUST_LOG=info
+
+REDIS_HOST=redis
+REDIS_IMG=redis:7.2.5-alpine3.19
+
+POSTGRES_HOST=postgres
+POSTGRES_IMG=postgres:16.3-bullseye
+POSTGRES_DB=taskdb
+POSTGRES_PORT=5432
+POSTGRES_USER=worker
+POSTGRES_PASSWORD=password
+
+MINIO_HOST=minio
+MINIO_IMG=minio/minio:RELEASE.2024-05-28T17-19-04Z
+MINIO_ROOT_USER=admin
+MINIO_ROOT_PASS=password
+MINIO_BUCKET=workflow
+
+GRAFANA_IMG=grafana/grafana:11.0.0
+
+SEGMENT_SIZE=$SRAM
+RISC0_KECCAK_PO2=17
+
+export PRIVATE_KEY=$PRIVATE_KEY
+export RPC_URL=$RPC
+EOL
+
+
 
